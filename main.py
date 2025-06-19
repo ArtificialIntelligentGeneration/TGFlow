@@ -9,12 +9,14 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QFont, QIcon
 import nest_asyncio
 from pyrogram import Client, errors
+from pyrogram.enums import ParseMode
 import logging
 from script_manager import list_scripts, load_script, save_script, delete_script
 import random
 import time
 import datetime, pathlib
 import configparser
+import re
 
 nest_asyncio.apply()
 
@@ -138,7 +140,7 @@ class TelegramWorker(QThread):
             except errors.PhoneCodeInvalid:
                 app_client.disconnect()
                 self.finished.emit(False, 'PHONE_CODE_INVALID', self.extra)
-                    return
+                return
                 
             app_client.disconnect()
             self.finished.emit(True, 'SUCCESS', self.extra)
@@ -184,15 +186,15 @@ class TelegramAuthWorker(QThread):
         try:
             client = Client(self.session_name, self.api_id, self.api_hash)
             client.connect()
-            
+
             # 1. Отправляем код всегда один раз
-                try:
+            try:
                 sent = client.send_code(self.phone)
-                except errors.FloodWait as fw:
+            except errors.FloodWait as fw:
                 client.disconnect()
                 self.finished.emit(False, f"FLOOD_WAIT_{fw.value}", {})
                 return
-                
+
             self.phone_code_hash = sent.phone_code_hash
             self.finished.emit(True, "NEED_CODE", {"phone_code_hash": self.phone_code_hash})
 
@@ -200,29 +202,29 @@ class TelegramAuthWorker(QThread):
             while not self._signed_in:
                 self.msleep(200)  # 0.2 секунды – нагрузка минимальна
 
-                # Если код введён – пробуем войти
+                # --- Ввод кода ---
                 if self.phone_code and not self._signed_in:
                     try:
                         client.sign_in(
-                    phone_number=self.phone,
-                    phone_code_hash=self.phone_code_hash,
+                            phone_number=self.phone,
+                            phone_code_hash=self.phone_code_hash,
                             phone_code=self.phone_code,
-                )
+                        )
                         self._signed_in = True
                     except errors.PhoneCodeInvalid:
                         self.phone_code = None
                         self.finished.emit(False, "PHONE_CODE_INVALID", {})
-            except errors.PhoneCodeExpired:
+                    except errors.PhoneCodeExpired:
                         sent = client.send_code(self.phone)
                         self.phone_code_hash = sent.phone_code_hash
                         self.phone_code = None
                         self.finished.emit(False, "PHONE_CODE_EXPIRED", {"phone_code_hash": self.phone_code_hash})
-            except errors.SessionPasswordNeeded:
+                    except errors.SessionPasswordNeeded:
                         # Требуется пароль 2FA – ждём ввода
                         self.phone_code = None
                         self.finished.emit(True, "NEED_PASSWORD", {})
 
-                # Если пароль введён – проходим 2FA
+                # --- Ввод пароля 2FA ---
                 if self.password and not self._signed_in:
                     try:
                         client.check_password(self.password)
@@ -253,10 +255,16 @@ class BroadcastWorker(QThread):
     def __init__(self, accounts_info: list[dict], message: str, min_delay: float, max_delay: float):
         super().__init__()
         self.accounts_info = accounts_info
-        self.message = message
+        self.message = self._sanitize_html(message)
         self.min_delay = min_delay
         self.max_delay = max_delay
         self._stop_requested = False
+
+        # Статистика
+        self.total_leads: int = 0
+        self.sent_ok: int = 0
+        self.sent_fail: int = 0
+        self.error_reasons: list[str] = []
 
     def stop(self):
         self._stop_requested = True
@@ -275,6 +283,7 @@ class BroadcastWorker(QThread):
                 continue
 
             for i, recipient in enumerate(acc["recipients"], 1):
+                self.total_leads += 1
                 if self._stop_requested:
                     break
                 try:
@@ -283,9 +292,18 @@ class BroadcastWorker(QThread):
                         if r.startswith('@'):
                             r=r[1:]
                         return r
-                    client.send_message(norm(recipient), self.message)
+                    client.send_message(norm(recipient), self.message, parse_mode=ParseMode.HTML)
+                    self.sent_ok += 1
                     self.log.emit(f"{name}: ✅ {recipient}")
+                except errors.FloodWait as fw:
+                    # Пропускаем оставшиеся лиды для данного аккаунта
+                    self.error_reasons.append(f"{name}: FLOOD_WAIT {fw.value}s – аккаунт пропущен")
+                    self.log.emit(f"<span style='color:red'>{name}: FLOOD_WAIT {fw.value}s – пропуск аккаунта</span>")
+                    break  # выходим из цикла по лидам
                 except Exception as e:
+                    self.sent_fail += 1
+                    err_msg = str(e)
+                    self.error_reasons.append(f"{name}/{recipient}: {err_msg}")
                     self.log.emit(f"{name}: ❌ {recipient} – {e}")
 
                 # Случайная задержка
@@ -302,7 +320,41 @@ class BroadcastWorker(QThread):
             client.disconnect()
             self.log.emit(f"{name}: завершено")
 
-        self.log.emit("<b>Рассылка остановлена</b>" if self._stop_requested else "<b>Все сообщения отправлены</b>")
+        # Итоговый отчёт
+        report_lines = [
+            "<hr>",
+            f"<b>Всего лидов:</b> {self.total_leads}",
+            f"<b>Успешно отправлено:</b> {self.sent_ok}",
+            f"<b>Ошибок:</b> {self.sent_fail}",
+        ]
+        if self.error_reasons:
+            report_lines.append("<b>Список ошибок:</b><br>" + "<br>".join(self.error_reasons))
+
+        self.log.emit("<br>".join(report_lines))
+        self.log.emit("<b>Рассылка остановлена</b>" if self._stop_requested else "<b>Все аккаунты обработаны</b>")
+
+    @staticmethod
+    def _sanitize_html(html: str) -> str:
+        """Приводит HTML из QTextEdit к формату, совместимому с Telegram."""
+        # Удаляем head/style
+        body_start = html.find('<body')
+        if body_start != -1:
+            body_start = html.find('>', body_start) + 1
+            body_end = html.find('</body>', body_start)
+            html = html[body_start:body_end]
+
+        # <span style="font-weight:600;"> → <b>
+        html = re.sub(r'<span[^>]*font-weight:[^>]*>(.*?)</span>', r'<b>\1</b>', html, flags=re.S)
+        # <span style="font-style:italic;"> → <i>
+        html = re.sub(r'<span[^>]*font-style:\s*italic[^>]*>(.*?)</span>', r'<i>\1</i>', html, flags=re.S)
+        # Убираем остальные span
+        html = re.sub(r'<span[^>]*>(.*?)</span>', r'\1', html, flags=re.S)
+        # <p> → ''   </p> → <br>
+        html = re.sub(r'<p[^>]*>', '', html)
+        html = re.sub(r'</p>', '<br>', html)
+        # Убираем стилевые атрибуты
+        html = re.sub(r' style="[^"]*"', '', html)
+        return html.strip()
 
 class TelegramApp(QMainWindow):
     def __init__(self):
@@ -587,7 +639,8 @@ class TelegramApp(QMainWindow):
         if not script_name:
             QMessageBox.warning(self, "Скрипты", "Выберите скрипт")
             return
-        message = self.script_preview.toPlainText()
+        # Берём именно HTML-код, чтобы сохранить форматирование
+        message = self.script_preview.toHtml()
         if not message.strip():
             QMessageBox.warning(self, "Скрипты", "Выбранный скрипт пуст")
             return
@@ -711,10 +764,13 @@ class TelegramApp(QMainWindow):
                 i_btn.setToolTip("Курсив")
                 link_btn = QPushButton("🔗")
                 link_btn.setToolTip("Вставить ссылку")
+                clear_btn = QPushButton("Tx")
+                clear_btn.setToolTip("Очистить форматирование")
 
                 toolbar.addWidget(b_btn)
                 toolbar.addWidget(i_btn)
                 toolbar.addWidget(link_btn)
+                toolbar.addWidget(clear_btn)
                 toolbar.addStretch()
                 lay.addLayout(toolbar)
 
@@ -757,12 +813,27 @@ class TelegramApp(QMainWindow):
                         html = f'<a href="{url}">{text}</a>'
                         cursor.insertHtml(html)
 
+                def clear_format():
+                    cursor = self.editor.textCursor()
+                    if cursor.hasSelection():
+                        txt = cursor.selectedText()
+                        cursor.removeSelectedText()
+                        cursor.insertText(txt)
+                    else:
+                        # Без выделения – убираем формат всего текста
+                        plain = self.editor.toPlainText()
+                        self.editor.clear()
+                        self.editor.insertPlainText(plain)
+
                 b_btn.clicked.connect(make_bold)
                 i_btn.clicked.connect(make_italic)
                 link_btn.clicked.connect(insert_link)
+                clear_btn.clicked.connect(clear_format)
 
             def html(self):
-                return self.editor.toHtml()
+                raw = self.editor.toHtml()
+                # Используем ту же функцию очистки, что и в BroadcastWorker
+                return BroadcastWorker._sanitize_html(raw)
 
         def add_script():
             name, ok = QInputDialog.getText(self, "Новый скрипт", "Имя файла (без расширения):")

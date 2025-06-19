@@ -18815,3 +18815,1623 @@ task: <Task pending name='Task-698' coro=<StreamReader.read() done, defined at /
     }
 }
 2025-06-19 22:52:00,504 [INFO] Session stopped
+2025-06-19 23:03:05,404 [DEBUG] Using selector: KqueueSelector
+2025-06-19 23:03:05,889 [INFO] Connecting...
+2025-06-19 23:03:05,894 [INFO] Connected! Production DC2 - IPv4
+2025-06-19 23:03:05,894 [DEBUG] Sent: {
+    "_": "Message",
+    "msg_id": 7517753494690856960,
+    "seq_no": 0,
+    "length": 12,
+    "body": {
+        "_": "functions.Ping",
+        "ping_id": 0
+    }
+}
+2025-06-19 23:03:05,896 [INFO] NetworkTask started
+2025-06-19 23:03:07,900 [INFO] Disconnected
+2025-06-19 23:03:07,900 [INFO] NetworkTask stopped
+2025-06-19 23:03:07,900 [INFO] Session stopped
+2025-06-19 23:03:07,900 [INFO] Connecting...
+2025-06-19 23:03:07,902 [INFO] Connected! Production DC2 - IPv4
+2025-06-19 23:03:07,903 [DEBUG] Sent: {
+    "_": "Message",
+    "msg_id": 7517753503280791552,
+    "seq_no": 0,
+    "length": 12,
+    "body": {
+        "_": "functions.Ping",
+        "ping_id": 0
+    }
+}
+2025-06-19 23:03:07,904 [INFO] NetworkTask started
+2025-06-19 23:03:09,907 [INFO] Disconnected
+2025-06-19 23:03:09,907 [INFO] NetworkTask stopped
+2025-06-19 23:03:09,908 [INFO] Session stopped
+2025-06-19 23:03:09,908 [INFO] Connecting...
+2025-06-19 23:03:09,910 [INFO] Connected! Production DC2 - IPv4
+2025-06-19 23:03:09,911 [DEBUG] Sent: {
+    "_": "Message",
+    "msg_id": 7517753511870726144,
+    "seq_no": 0,
+    "length": 12,
+    "body": {
+        "_": "functions.Ping",
+        "ping_id": 0
+    }
+}
+2025-06-19 23:03:09,911 [INFO] NetworkTask started
+2025-06-19 23:03:10,554 [DEBUG] Received: {
+    "_": "Message",
+    "msg_id": 7517753519466478593,
+    "seq_no": 0,
+    "length": 28,
+    "body": {
+        "_": "types.BadServerSalt",
+        "bad_msg_id": 7517753511870726144,
+        "bad_msg_seqno": 0,
+        "error_code": 48,
+        "new_server_salt": 2677834800662555293
+    }
+}
+2025-06-19 23:03:10,555 [DEBUG] Sent: {
+    "_": "Message",
+    "msg_id": 7517753516165693440,
+    "seq_no": 0,
+    "length": 12,
+    "body": {
+        "_": "functions.Ping",
+        "ping_id": 0
+    }
+}
+2025-06-19 23:03:11,597 [DEBUG] Received: {
+    "_": "Message",
+    "msg_id": 7517753520753964041,
+    "seq_no": 2,
+    "length": 88,
+    "body": {
+        "_": "MsgContainer",
+        "messages": [
+            {
+                "_": "Message",
+                "msg_id": 7517753520753964033,
+                "seq_no": 1,
+                "length": 28,
+                "body": {
+                    "_": "types.NewSessionCreated",
+                    "first_msg_id": 7517753516165693440,
+                    "unique_id": 6555798272353017042,
+                    "server_salt": 2677834800662555293
+                }
+            },
+            {
+                "_": "Message",
+                "msg_id": 7517753520753964037,
+                "seq_no": 2,
+                "length": 20,
+                "body": {
+                    "_": "types.Pong",
+                    "msg_id": 7517753516165693440,
+                    "ping_id": 0
+                }
+            }
+        ]
+    }
+}
+2025-06-19 23:03:11,603 [DEBUG] Sent: {
+    "_": "Message",
+    "msg_id": 7517753520460660744,
+    "seq_no": 1,
+    "length": 88,
+    "body": {
+        "_": "functions.InvokeWithLayer",
+        "layer": 158,
+        "query": {
+            "_": "functions.InitConnection",
+            "api_id": 22085020,
+            "device_model": "CPython 3.10.14",
+            "system_version": "Darwin 21.6.0",
+            "app_version": "Pyrogram 2.0.106",
+            "system_lang_code": "en",
+            "lang_pack": "",
+            "lang_code": "en",
+            "query": {
+                "_": "functions.help.GetConfig"
+            }
+        }
+    }
+}
+2025-06-19 23:03:12,144 [DEBUG] Received: {
+    "_": "Message",
+    "msg_id": 7517753525947939841,
+    "seq_no": 3,
+    "length": 548,
+    "body": {
+        "_": "types.RpcResult",
+        "req_msg_id": 7517753520460660744,
+        "result": {
+            "_": "types.Config",
+            "date": 1750363392,
+            "expires": 1750366548,
+            "test_mode": false,
+            "this_dc": 2,
+            "dc_options": [
+                {
+                    "_": "types.DcOption",
+                    "id": 1,
+                    "ip_address": "149.154.175.53",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 1,
+                    "ip_address": "149.154.175.53",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": true,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 1,
+                    "ip_address": "2001:0b28:f23d:f001:0000:0000:0000:000a",
+                    "port": 443,
+                    "ipv6": true,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 2,
+                    "ip_address": "149.154.167.41",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 2,
+                    "ip_address": "149.154.167.41",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": true,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 2,
+                    "ip_address": "149.154.167.222",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": true,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 2,
+                    "ip_address": "2001:067c:04e8:f002:0000:0000:0000:000a",
+                    "port": 443,
+                    "ipv6": true,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 2,
+                    "ip_address": "2001:067c:04e8:f002:0000:0000:0000:000b",
+                    "port": 443,
+                    "ipv6": true,
+                    "media_only": true,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 3,
+                    "ip_address": "149.154.175.100",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 3,
+                    "ip_address": "149.154.175.100",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": true,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 3,
+                    "ip_address": "2001:0b28:f23d:f003:0000:0000:0000:000a",
+                    "port": 443,
+                    "ipv6": true,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 4,
+                    "ip_address": "149.154.167.91",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 4,
+                    "ip_address": "149.154.167.91",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": true,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 4,
+                    "ip_address": "2001:067c:04e8:f004:0000:0000:0000:000a",
+                    "port": 443,
+                    "ipv6": true,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 4,
+                    "ip_address": "149.154.165.136",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": true,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 4,
+                    "ip_address": "2001:067c:04e8:f004:0000:0000:0000:000b",
+                    "port": 443,
+                    "ipv6": true,
+                    "media_only": true,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 5,
+                    "ip_address": "2001:0b28:f23f:f005:0000:0000:0000:000a",
+                    "port": 443,
+                    "ipv6": true,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 5,
+                    "ip_address": "91.108.56.105",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 5,
+                    "ip_address": "91.108.56.105",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": true,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 203,
+                    "ip_address": "91.105.192.100",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": true,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 203,
+                    "ip_address": "2a0a:f280:0203:000a:5000:0000:0000:0100",
+                    "port": 443,
+                    "ipv6": true,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": true,
+                    "static": false,
+                    "this_port_only": false
+                }
+            ],
+            "dc_txt_domain_name": "apv3.stel.com",
+            "chat_size_max": 200,
+            "megagroup_size_max": 200000,
+            "forwarded_count_max": 100,
+            "online_update_period_ms": 210000,
+            "offline_blur_timeout_ms": 5000,
+            "offline_idle_timeout_ms": 30000,
+            "online_cloud_timeout_ms": 300000,
+            "notify_cloud_delay_ms": 30000,
+            "notify_default_delay_ms": 1500,
+            "push_chat_period_ms": 60000,
+            "push_chat_limit": 2,
+            "edit_time_limit": 172800,
+            "revoke_time_limit": 2147483647,
+            "revoke_pm_time_limit": 2147483647,
+            "rating_e_decay": 2419200,
+            "stickers_recent_limit": 200,
+            "channels_read_media_period": 604800,
+            "call_receive_timeout_ms": 20000,
+            "call_ring_timeout_ms": 90000,
+            "call_connect_timeout_ms": 30000,
+            "call_packet_timeout_ms": 10000,
+            "me_url_prefix": "https://t.me/",
+            "caption_length_max": 1024,
+            "message_length_max": 4096,
+            "webfile_dc_id": 4,
+            "default_p2p_contacts": true,
+            "preload_featured_stickers": false,
+            "revoke_pm_inbox": true,
+            "blocked_mode": false,
+            "force_try_ipv6": false,
+            "gif_search_username": "gif",
+            "venue_search_username": "foursquare",
+            "img_search_username": "bing",
+            "reactions_default": {
+                "_": "types.ReactionEmoji",
+                "emoticon": "❤"
+            },
+            "autologin_token": "U70SiBYxPoO4ShbwiwY0yiH182bO1FNZ5XP2px8nGrloVG0AFgAAAAFgMMZPAEu3IM0lC0EWtJ94RBzkkBKYCS65GQ3zF-NEiJSLGhnX"
+        }
+    }
+}
+2025-06-19 23:03:12,166 [INFO] Session initialized: Layer 158
+2025-06-19 23:03:12,166 [INFO] Device: CPython 3.10.14 - Pyrogram 2.0.106
+2025-06-19 23:03:12,166 [INFO] System: Darwin 21.6.0 (en)
+2025-06-19 23:03:12,167 [INFO] Session started
+2025-06-19 23:03:12,173 [INFO] PingTask started
+2025-06-19 23:03:12,179 [INFO] PingTask stopped
+2025-06-19 23:03:12,188 [INFO] Disconnected
+2025-06-19 23:03:12,190 [INFO] NetworkTask stopped
+2025-06-19 23:03:12,191 [INFO] Session stopped
+2025-06-19 23:06:45,398 [DEBUG] Using selector: KqueueSelector
+2025-06-19 23:06:45,895 [INFO] Connecting...
+2025-06-19 23:06:45,900 [INFO] Connected! Production DC2 - IPv4
+2025-06-19 23:06:45,900 [DEBUG] Sent: {
+    "_": "Message",
+    "msg_id": 7517754439583662080,
+    "seq_no": 0,
+    "length": 12,
+    "body": {
+        "_": "functions.Ping",
+        "ping_id": 0
+    }
+}
+2025-06-19 23:06:45,903 [INFO] NetworkTask started
+2025-06-19 23:06:46,395 [DEBUG] Received: {
+    "_": "Message",
+    "msg_id": 7517754446719197185,
+    "seq_no": 0,
+    "length": 28,
+    "body": {
+        "_": "types.BadServerSalt",
+        "bad_msg_id": 7517754439583662080,
+        "bad_msg_seqno": 0,
+        "error_code": 48,
+        "new_server_salt": 2677834800662555293
+    }
+}
+2025-06-19 23:06:46,396 [DEBUG] Sent: {
+    "_": "Message",
+    "msg_id": 7517754443878629376,
+    "seq_no": 0,
+    "length": 12,
+    "body": {
+        "_": "functions.Ping",
+        "ping_id": 0
+    }
+}
+2025-06-19 23:06:46,631 [DEBUG] Received: {
+    "_": "Message",
+    "msg_id": 7517754447773812745,
+    "seq_no": 2,
+    "length": 88,
+    "body": {
+        "_": "MsgContainer",
+        "messages": [
+            {
+                "_": "Message",
+                "msg_id": 7517754447773812737,
+                "seq_no": 1,
+                "length": 28,
+                "body": {
+                    "_": "types.NewSessionCreated",
+                    "first_msg_id": 7517754443878629376,
+                    "unique_id": 5170262115392573141,
+                    "server_salt": 2677834800662555293
+                }
+            },
+            {
+                "_": "Message",
+                "msg_id": 7517754447773812741,
+                "seq_no": 2,
+                "length": 20,
+                "body": {
+                    "_": "types.Pong",
+                    "msg_id": 7517754443878629376,
+                    "ping_id": 0
+                }
+            }
+        ]
+    }
+}
+2025-06-19 23:06:46,636 [DEBUG] Sent: {
+    "_": "Message",
+    "msg_id": 7517754443878629388,
+    "seq_no": 1,
+    "length": 88,
+    "body": {
+        "_": "functions.InvokeWithLayer",
+        "layer": 158,
+        "query": {
+            "_": "functions.InitConnection",
+            "api_id": 22085020,
+            "device_model": "CPython 3.10.14",
+            "system_version": "Darwin 21.6.0",
+            "app_version": "Pyrogram 2.0.106",
+            "system_lang_code": "en",
+            "lang_pack": "",
+            "lang_code": "en",
+            "query": {
+                "_": "functions.help.GetConfig"
+            }
+        }
+    }
+}
+2025-06-19 23:06:46,904 [DEBUG] Received: {
+    "_": "Message",
+    "msg_id": 7517754448861538305,
+    "seq_no": 3,
+    "length": 548,
+    "body": {
+        "_": "types.RpcResult",
+        "req_msg_id": 7517754443878629388,
+        "result": {
+            "_": "types.Config",
+            "date": 1750363607,
+            "expires": 1750366783,
+            "test_mode": false,
+            "this_dc": 2,
+            "dc_options": [
+                {
+                    "_": "types.DcOption",
+                    "id": 1,
+                    "ip_address": "149.154.175.53",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 1,
+                    "ip_address": "149.154.175.53",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": true,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 1,
+                    "ip_address": "2001:0b28:f23d:f001:0000:0000:0000:000a",
+                    "port": 443,
+                    "ipv6": true,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 2,
+                    "ip_address": "149.154.167.41",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 2,
+                    "ip_address": "149.154.167.41",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": true,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 2,
+                    "ip_address": "149.154.167.222",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": true,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 2,
+                    "ip_address": "2001:067c:04e8:f002:0000:0000:0000:000a",
+                    "port": 443,
+                    "ipv6": true,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 2,
+                    "ip_address": "2001:067c:04e8:f002:0000:0000:0000:000b",
+                    "port": 443,
+                    "ipv6": true,
+                    "media_only": true,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 3,
+                    "ip_address": "149.154.175.100",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 3,
+                    "ip_address": "149.154.175.100",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": true,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 3,
+                    "ip_address": "2001:0b28:f23d:f003:0000:0000:0000:000a",
+                    "port": 443,
+                    "ipv6": true,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 4,
+                    "ip_address": "149.154.167.91",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 4,
+                    "ip_address": "149.154.167.91",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": true,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 4,
+                    "ip_address": "2001:067c:04e8:f004:0000:0000:0000:000a",
+                    "port": 443,
+                    "ipv6": true,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 4,
+                    "ip_address": "149.154.165.136",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": true,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 4,
+                    "ip_address": "2001:067c:04e8:f004:0000:0000:0000:000b",
+                    "port": 443,
+                    "ipv6": true,
+                    "media_only": true,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 5,
+                    "ip_address": "2001:0b28:f23f:f005:0000:0000:0000:000a",
+                    "port": 443,
+                    "ipv6": true,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 5,
+                    "ip_address": "91.108.56.105",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 5,
+                    "ip_address": "91.108.56.105",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": true,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 203,
+                    "ip_address": "91.105.192.100",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": true,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 203,
+                    "ip_address": "2a0a:f280:0203:000a:5000:0000:0000:0100",
+                    "port": 443,
+                    "ipv6": true,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": true,
+                    "static": false,
+                    "this_port_only": false
+                }
+            ],
+            "dc_txt_domain_name": "apv3.stel.com",
+            "chat_size_max": 200,
+            "megagroup_size_max": 200000,
+            "forwarded_count_max": 100,
+            "online_update_period_ms": 210000,
+            "offline_blur_timeout_ms": 5000,
+            "offline_idle_timeout_ms": 30000,
+            "online_cloud_timeout_ms": 300000,
+            "notify_cloud_delay_ms": 30000,
+            "notify_default_delay_ms": 1500,
+            "push_chat_period_ms": 60000,
+            "push_chat_limit": 2,
+            "edit_time_limit": 172800,
+            "revoke_time_limit": 2147483647,
+            "revoke_pm_time_limit": 2147483647,
+            "rating_e_decay": 2419200,
+            "stickers_recent_limit": 200,
+            "channels_read_media_period": 604800,
+            "call_receive_timeout_ms": 20000,
+            "call_ring_timeout_ms": 90000,
+            "call_connect_timeout_ms": 30000,
+            "call_packet_timeout_ms": 10000,
+            "me_url_prefix": "https://t.me/",
+            "caption_length_max": 1024,
+            "message_length_max": 4096,
+            "webfile_dc_id": 4,
+            "default_p2p_contacts": true,
+            "preload_featured_stickers": false,
+            "revoke_pm_inbox": true,
+            "blocked_mode": false,
+            "force_try_ipv6": false,
+            "gif_search_username": "gif",
+            "venue_search_username": "foursquare",
+            "img_search_username": "bing",
+            "reactions_default": {
+                "_": "types.ReactionEmoji",
+                "emoticon": "❤"
+            },
+            "autologin_token": "kWPL0ukI-XUNZFzhc3OUTGAgFvEviKQEqDsYU78NRS5oVG3XFgAAAAFgMMZPANSQMHdQRNPp7fxhiUqLHDKokyIG8lWMAR2Mq1NzW6BI"
+        }
+    }
+}
+2025-06-19 23:06:46,908 [INFO] Session initialized: Layer 158
+2025-06-19 23:06:46,908 [INFO] Device: CPython 3.10.14 - Pyrogram 2.0.106
+2025-06-19 23:06:46,908 [INFO] System: Darwin 21.6.0 (en)
+2025-06-19 23:06:46,908 [INFO] Session started
+2025-06-19 23:06:46,910 [INFO] PingTask started
+2025-06-19 23:06:46,915 [DEBUG] Unmatched closing tag </meta> at line 2:13
+2025-06-19 23:06:46,915 [DEBUG] Unmatched closing tag </meta> at line 2:50
+2025-06-19 23:06:46,916 [DEBUG] Unmatched closing tag </style> at line 7:1
+2025-06-19 23:06:46,916 [DEBUG] Unmatched closing tag </head> at line 7:9
+2025-06-19 23:06:46,916 [DEBUG] Unmatched closing tag </br> at line 8:145
+2025-06-19 23:06:46,917 [DEBUG] Unmatched closing tag </br> at line 8:151
+2025-06-19 23:06:46,917 [DEBUG] Unmatched closing tag </br> at line 8:198
+2025-06-19 23:06:46,918 [DEBUG] Unmatched closing tag </br> at line 8:204
+2025-06-19 23:06:46,918 [DEBUG] Unmatched closing tag </span> at line 8:210
+2025-06-19 23:06:46,918 [DEBUG] Unmatched closing tag </br> at line 8:277
+2025-06-19 23:06:46,918 [DEBUG] Unmatched closing tag </br> at line 8:283
+2025-06-19 23:06:46,918 [DEBUG] Unmatched closing tag </span> at line 8:291
+2025-06-19 23:06:46,919 [DEBUG] Unmatched closing tag </span> at line 8:400
+2025-06-19 23:06:46,919 [DEBUG] Unmatched closing tag </p> at line 8:411
+2025-06-19 23:06:46,919 [DEBUG] Unmatched closing tag </body> at line 8:415
+2025-06-19 23:06:46,919 [DEBUG] Unmatched closing tag </html> at line 8:422
+2025-06-19 23:06:46,922 [DEBUG] Sent: {
+    "_": "Message",
+    "msg_id": 7517754443878629396,
+    "seq_no": 3,
+    "length": 20,
+    "body": {
+        "_": "functions.contacts.ResolveUsername",
+        "username": "hermannsaliter"
+    }
+}
+2025-06-19 23:06:47,510 [DEBUG] Received: {
+    "_": "Message",
+    "msg_id": 7517754450121136129,
+    "seq_no": 5,
+    "length": 168,
+    "body": {
+        "_": "types.RpcResult",
+        "req_msg_id": 7517754443878629396,
+        "result": {
+            "_": "types.contacts.ResolvedPeer",
+            "peer": {
+                "_": "types.PeerUser",
+                "user_id": 1883492422
+            },
+            "chats": [],
+            "users": [
+                {
+                    "_": "types.User",
+                    "id": 1883492422,
+                    "is_self": false,
+                    "contact": true,
+                    "mutual_contact": true,
+                    "deleted": false,
+                    "bot": false,
+                    "bot_chat_history": false,
+                    "bot_nochats": false,
+                    "verified": false,
+                    "restricted": false,
+                    "min": false,
+                    "bot_inline_geo": false,
+                    "support": false,
+                    "scam": false,
+                    "apply_min_photo": true,
+                    "fake": false,
+                    "bot_attach_menu": false,
+                    "premium": true,
+                    "attach_menu_enabled": false,
+                    "bot_can_edit": false,
+                    "access_hash": 2994871337088939850,
+                    "first_name": "Hermann",
+                    "last_name": "Saliter",
+                    "username": "HermannSaliter",
+                    "phone": "79604487797",
+                    "photo": {
+                        "_": "types.UserProfilePhoto",
+                        "photo_id": 5402189129262947922,
+                        "dc_id": 2,
+                        "has_video": false,
+                        "personal": false,
+                        "stripped_thumb": "b'\\x01\\x08\\x08\\xce\\x11\\xe5s\\x83\\xd7\\xd2\\x8a(\\xa0\\x0f'"
+                    },
+                    "status": {
+                        "_": "types.UserStatusRecently"
+                    },
+                    "restriction_reason": [],
+                    "emoji_status": {
+                        "_": "types.EmojiStatus",
+                        "document_id": 5952043928805969325
+                    },
+                    "usernames": []
+                }
+            ]
+        }
+    }
+}
+2025-06-19 23:06:47,514 [DEBUG] Sent: {
+    "_": "Message",
+    "msg_id": 7517754448173596680,
+    "seq_no": 5,
+    "length": 336,
+    "body": {
+        "_": "functions.messages.SendMessage",
+        "peer": {
+            "_": "types.InputPeerUser",
+            "user_id": 1883492422,
+            "access_hash": 2994871337088939850
+        },
+        "message": "\n\np, li { white-space: pre-wrap; }\nhr { height: 1px; border-width: 0; }\nli.unchecked::marker { content: \"\\2610\"; }\nli.checked::marker { content: \"\\2612\"; }\n\nПроверка форматирования: 1. Жирный2. Курсив3.Ссылка",
+        "random_id": 7517754448173596676,
+        "entities": [
+            {
+                "_": "types.MessageEntityTextUrl",
+                "offset": 202,
+                "length": 6,
+                "url": "https://t.me/HermannSaliter"
+            }
+        ]
+    }
+}
+2025-06-19 23:06:47,800 [DEBUG] Received: {
+    "_": "Message",
+    "msg_id": 7517754452808030209,
+    "seq_no": 7,
+    "length": 104,
+    "body": {
+        "_": "types.RpcResult",
+        "req_msg_id": 7517754448173596680,
+        "result": {
+            "_": "types.UpdateShortSentMessage",
+            "id": 44037,
+            "pts": 116691,
+            "pts_count": 1,
+            "date": 1750363608,
+            "out": true,
+            "media": {
+                "_": "types.MessageMediaWebPage",
+                "webpage": {
+                    "_": "types.WebPagePending",
+                    "id": 9170793120776916805,
+                    "date": 1750363728
+                }
+            },
+            "entities": [
+                {
+                    "_": "types.MessageEntityTextUrl",
+                    "offset": 202,
+                    "length": 6,
+                    "url": "https://t.me/HermannSaliter"
+                }
+            ]
+        }
+    }
+}
+2025-06-19 23:06:47,805 [INFO] PingTask stopped
+2025-06-19 23:06:47,807 [INFO] Disconnected
+2025-06-19 23:06:47,807 [INFO] NetworkTask stopped
+2025-06-19 23:06:47,808 [INFO] Session stopped
+2025-06-19 23:12:03,356 [DEBUG] Using selector: KqueueSelector
+2025-06-19 23:12:03,811 [INFO] Connecting...
+2025-06-19 23:12:03,814 [INFO] Connected! Production DC2 - IPv4
+2025-06-19 23:12:03,815 [DEBUG] Sent: {
+    "_": "Message",
+    "msg_id": 7517755805383262208,
+    "seq_no": 0,
+    "length": 12,
+    "body": {
+        "_": "functions.Ping",
+        "ping_id": 0
+    }
+}
+2025-06-19 23:12:03,817 [INFO] NetworkTask started
+2025-06-19 23:12:04,338 [DEBUG] Received: {
+    "_": "Message",
+    "msg_id": 7517755812307697665,
+    "seq_no": 0,
+    "length": 28,
+    "body": {
+        "_": "types.BadServerSalt",
+        "bad_msg_id": 7517755805383262208,
+        "bad_msg_seqno": 0,
+        "error_code": 48,
+        "new_server_salt": 2677834800662555293
+    }
+}
+2025-06-19 23:12:04,339 [DEBUG] Sent: {
+    "_": "Message",
+    "msg_id": 7517755809678229504,
+    "seq_no": 0,
+    "length": 12,
+    "body": {
+        "_": "functions.Ping",
+        "ping_id": 0
+    }
+}
+2025-06-19 23:12:04,587 [DEBUG] Received: {
+    "_": "Message",
+    "msg_id": 7517755813350096905,
+    "seq_no": 2,
+    "length": 88,
+    "body": {
+        "_": "MsgContainer",
+        "messages": [
+            {
+                "_": "Message",
+                "msg_id": 7517755813350096897,
+                "seq_no": 1,
+                "length": 28,
+                "body": {
+                    "_": "types.NewSessionCreated",
+                    "first_msg_id": 7517755809678229504,
+                    "unique_id": 651863827540724010,
+                    "server_salt": 2677834800662555293
+                }
+            },
+            {
+                "_": "Message",
+                "msg_id": 7517755813350096901,
+                "seq_no": 2,
+                "length": 20,
+                "body": {
+                    "_": "types.Pong",
+                    "msg_id": 7517755809678229504,
+                    "ping_id": 0
+                }
+            }
+        ]
+    }
+}
+2025-06-19 23:12:04,591 [DEBUG] Sent: {
+    "_": "Message",
+    "msg_id": 7517755809678229516,
+    "seq_no": 1,
+    "length": 88,
+    "body": {
+        "_": "functions.InvokeWithLayer",
+        "layer": 158,
+        "query": {
+            "_": "functions.InitConnection",
+            "api_id": 22085020,
+            "device_model": "CPython 3.10.14",
+            "system_version": "Darwin 21.6.0",
+            "app_version": "Pyrogram 2.0.106",
+            "system_lang_code": "en",
+            "lang_pack": "",
+            "lang_code": "en",
+            "query": {
+                "_": "functions.help.GetConfig"
+            }
+        }
+    }
+}
+2025-06-19 23:12:04,896 [DEBUG] Received: {
+    "_": "Message",
+    "msg_id": 7517755814648621057,
+    "seq_no": 3,
+    "length": 548,
+    "body": {
+        "_": "types.RpcResult",
+        "req_msg_id": 7517755809678229516,
+        "result": {
+            "_": "types.Config",
+            "date": 1750363925,
+            "expires": 1750367434,
+            "test_mode": false,
+            "this_dc": 2,
+            "dc_options": [
+                {
+                    "_": "types.DcOption",
+                    "id": 1,
+                    "ip_address": "149.154.175.53",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 1,
+                    "ip_address": "149.154.175.53",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": true,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 1,
+                    "ip_address": "2001:0b28:f23d:f001:0000:0000:0000:000a",
+                    "port": 443,
+                    "ipv6": true,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 2,
+                    "ip_address": "149.154.167.41",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 2,
+                    "ip_address": "149.154.167.41",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": true,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 2,
+                    "ip_address": "149.154.167.222",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": true,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 2,
+                    "ip_address": "2001:067c:04e8:f002:0000:0000:0000:000a",
+                    "port": 443,
+                    "ipv6": true,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 2,
+                    "ip_address": "2001:067c:04e8:f002:0000:0000:0000:000b",
+                    "port": 443,
+                    "ipv6": true,
+                    "media_only": true,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 3,
+                    "ip_address": "149.154.175.100",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 3,
+                    "ip_address": "149.154.175.100",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": true,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 3,
+                    "ip_address": "2001:0b28:f23d:f003:0000:0000:0000:000a",
+                    "port": 443,
+                    "ipv6": true,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 4,
+                    "ip_address": "149.154.167.91",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 4,
+                    "ip_address": "149.154.167.91",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": true,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 4,
+                    "ip_address": "2001:067c:04e8:f004:0000:0000:0000:000a",
+                    "port": 443,
+                    "ipv6": true,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 4,
+                    "ip_address": "149.154.165.136",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": true,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 4,
+                    "ip_address": "2001:067c:04e8:f004:0000:0000:0000:000b",
+                    "port": 443,
+                    "ipv6": true,
+                    "media_only": true,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 5,
+                    "ip_address": "2001:0b28:f23f:f005:0000:0000:0000:000a",
+                    "port": 443,
+                    "ipv6": true,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 5,
+                    "ip_address": "91.108.56.105",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 5,
+                    "ip_address": "91.108.56.105",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": false,
+                    "static": true,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 203,
+                    "ip_address": "91.105.192.100",
+                    "port": 443,
+                    "ipv6": false,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": true,
+                    "static": false,
+                    "this_port_only": false
+                },
+                {
+                    "_": "types.DcOption",
+                    "id": 203,
+                    "ip_address": "2a0a:f280:0203:000a:5000:0000:0000:0100",
+                    "port": 443,
+                    "ipv6": true,
+                    "media_only": false,
+                    "tcpo_only": false,
+                    "cdn": true,
+                    "static": false,
+                    "this_port_only": false
+                }
+            ],
+            "dc_txt_domain_name": "apv3.stel.com",
+            "chat_size_max": 200,
+            "megagroup_size_max": 200000,
+            "forwarded_count_max": 100,
+            "online_update_period_ms": 210000,
+            "offline_blur_timeout_ms": 5000,
+            "offline_idle_timeout_ms": 30000,
+            "online_cloud_timeout_ms": 300000,
+            "notify_cloud_delay_ms": 30000,
+            "notify_default_delay_ms": 1500,
+            "push_chat_period_ms": 60000,
+            "push_chat_limit": 2,
+            "edit_time_limit": 172800,
+            "revoke_time_limit": 2147483647,
+            "revoke_pm_time_limit": 2147483647,
+            "rating_e_decay": 2419200,
+            "stickers_recent_limit": 200,
+            "channels_read_media_period": 604800,
+            "call_receive_timeout_ms": 20000,
+            "call_ring_timeout_ms": 90000,
+            "call_connect_timeout_ms": 30000,
+            "call_packet_timeout_ms": 10000,
+            "me_url_prefix": "https://t.me/",
+            "caption_length_max": 1024,
+            "message_length_max": 4096,
+            "webfile_dc_id": 4,
+            "default_p2p_contacts": true,
+            "preload_featured_stickers": false,
+            "revoke_pm_inbox": true,
+            "blocked_mode": false,
+            "force_try_ipv6": false,
+            "gif_search_username": "gif",
+            "venue_search_username": "foursquare",
+            "img_search_username": "bing",
+            "reactions_default": {
+                "_": "types.ReactionEmoji",
+                "emoticon": "❤"
+            },
+            "autologin_token": "ejsWfkuDlM1Cl9_qAjzqmCV7vKr-n8yexhDcN98TKWZoVG8VFgAAAAFgMMZPAFPFmrbvoifAcFf_xcfSRf5J0ifJeIyEvwkClF5BOymj"
+        }
+    }
+}
+2025-06-19 23:12:04,900 [INFO] Session initialized: Layer 158
+2025-06-19 23:12:04,900 [INFO] Device: CPython 3.10.14 - Pyrogram 2.0.106
+2025-06-19 23:12:04,900 [INFO] System: Darwin 21.6.0 (en)
+2025-06-19 23:12:04,900 [INFO] Session started
+2025-06-19 23:12:04,902 [INFO] PingTask started
+2025-06-19 23:12:04,903 [DEBUG] Unmatched closing tag </br> at line 2:1
+2025-06-19 23:12:04,904 [DEBUG] Unmatched closing tag </br> at line 4:1
+2025-06-19 23:12:04,904 [DEBUG] Unmatched closing tag </br> at line 6:1
+2025-06-19 23:12:04,906 [DEBUG] Sent: {
+    "_": "Message",
+    "msg_id": 7517755809678229524,
+    "seq_no": 3,
+    "length": 20,
+    "body": {
+        "_": "functions.contacts.ResolveUsername",
+        "username": "hermannsaliter"
+    }
+}
+2025-06-19 23:12:05,188 [DEBUG] Received: {
+    "_": "Message",
+    "msg_id": 7517755815946554369,
+    "seq_no": 5,
+    "length": 168,
+    "body": {
+        "_": "types.RpcResult",
+        "req_msg_id": 7517755809678229524,
+        "result": {
+            "_": "types.contacts.ResolvedPeer",
+            "peer": {
+                "_": "types.PeerUser",
+                "user_id": 1883492422
+            },
+            "chats": [],
+            "users": [
+                {
+                    "_": "types.User",
+                    "id": 1883492422,
+                    "is_self": false,
+                    "contact": true,
+                    "mutual_contact": true,
+                    "deleted": false,
+                    "bot": false,
+                    "bot_chat_history": false,
+                    "bot_nochats": false,
+                    "verified": false,
+                    "restricted": false,
+                    "min": false,
+                    "bot_inline_geo": false,
+                    "support": false,
+                    "scam": false,
+                    "apply_min_photo": true,
+                    "fake": false,
+                    "bot_attach_menu": false,
+                    "premium": true,
+                    "attach_menu_enabled": false,
+                    "bot_can_edit": false,
+                    "access_hash": 2994871337088939850,
+                    "first_name": "Hermann",
+                    "last_name": "Saliter",
+                    "username": "HermannSaliter",
+                    "phone": "79604487797",
+                    "photo": {
+                        "_": "types.UserProfilePhoto",
+                        "photo_id": 5402189129262947922,
+                        "dc_id": 2,
+                        "has_video": false,
+                        "personal": false,
+                        "stripped_thumb": "b'\\x01\\x08\\x08\\xce\\x11\\xe5s\\x83\\xd7\\xd2\\x8a(\\xa0\\x0f'"
+                    },
+                    "status": {
+                        "_": "types.UserStatusRecently"
+                    },
+                    "restriction_reason": [],
+                    "emoji_status": {
+                        "_": "types.EmojiStatus",
+                        "document_id": 5952043928805969325
+                    },
+                    "usernames": []
+                }
+            ]
+        }
+    }
+}
+2025-06-19 23:12:05,191 [DEBUG] Sent: {
+    "_": "Message",
+    "msg_id": 7517755813973196808,
+    "seq_no": 5,
+    "length": 208,
+    "body": {
+        "_": "functions.messages.SendMessage",
+        "peer": {
+            "_": "types.InputPeerUser",
+            "user_id": 1883492422,
+            "access_hash": 2994871337088939850
+        },
+        "message": "Проверка форматирования: \n\n1. Жирный\n\n2. Курсив\n\n3. Ссылка",
+        "random_id": 7517755813973196804,
+        "entities": [
+            {
+                "_": "types.MessageEntityBold",
+                "offset": 27,
+                "length": 9
+            },
+            {
+                "_": "types.MessageEntityItalic",
+                "offset": 38,
+                "length": 9
+            },
+            {
+                "_": "types.MessageEntityTextUrl",
+                "offset": 49,
+                "length": 9,
+                "url": "https://t.me/HermannSaliter"
+            }
+        ]
+    }
+}
+2025-06-19 23:12:05,509 [DEBUG] Received: {
+    "_": "Message",
+    "msg_id": 7517755817334755329,
+    "seq_no": 7,
+    "length": 468,
+    "body": {
+        "_": "types.RpcResult",
+        "req_msg_id": 7517755813973196808,
+        "result": {
+            "_": "types.UpdateShortSentMessage",
+            "id": 44038,
+            "pts": 116694,
+            "pts_count": 1,
+            "date": 1750363925,
+            "out": true,
+            "media": {
+                "_": "types.MessageMediaWebPage",
+                "webpage": {
+                    "_": "types.WebPage",
+                    "id": 9170793120776916805,
+                    "url": "https://t.me/HermannSaliter",
+                    "display_url": "t.me/HermannSaliter",
+                    "hash": 0,
+                    "type": "telegram_user",
+                    "site_name": "Telegram",
+                    "title": "Hermann Saliter",
+                    "photo": {
+                        "_": "types.Photo",
+                        "id": 5402189129262947922,
+                        "access_hash": 6466882086668356235,
+                        "file_reference": "b'\\x00hTo\\x15\\xbe.\\xfd%\\xa7\\x8b\\xc1P\\xab\\xa0cB,\\xa4\\xd5\\xac'",
+                        "date": 1717517265,
+                        "sizes": [
+                            {
+                                "_": "types.PhotoSize",
+                                "type": "a",
+                                "w": 160,
+                                "h": 160,
+                                "size": 8150
+                            },
+                            {
+                                "_": "types.PhotoSize",
+                                "type": "b",
+                                "w": 320,
+                                "h": 320,
+                                "size": 22476
+                            },
+                            {
+                                "_": "types.PhotoSize",
+                                "type": "c",
+                                "w": 640,
+                                "h": 640,
+                                "size": 66009
+                            },
+                            {
+                                "_": "types.PhotoStrippedSize",
+                                "type": "i",
+                                "bytes": "b'\\x01((\\xcc \\x06\\x1e\\x94\\xd29\\xe0qOa\\x82\\x0eA8\\xedI\\xcf\\xbf\\xe5@\\x02\\xc6\\xdb\\x0b\\xe3\\x81\\xcdG\\x9er)\\xe7\\xa8\\xfa\\xd0\\xc3\\xd3\\xa8\\xa0\\x04V88\\xf4\\xc1\\xe2\\x8a\\x92\\xd1\\x80\\x9b\\xe6\\x1b\\x86\\x0f\\x18\\xcd\\x14\\x00\\xdc\\xe4\\x0f\\xa57\\x1f1\\x02\\x9c\\xc7p\\xe7\\xb1\\xa0c\\xe6\\xe0{P\\x05\\x81k\\x1ci\\xbaw\\xcf\\xd2\\x99<\\xa8\\xe8\\x02(\\\\{T\\xb3\\x0c\\xd8\\xa9<\\xb7\\x04\\x93U\\x19rx\\x1d\\xa8\\x01\\xd6\\xe4\\xf9\\x9cc8=\\xa8\\xa7\\xc0B++w\\xa2\\x80\\x11b,\\x99\\\\\\x1c\\xd2\\x8bg=\\x87\\xe7E\\x14\\x01g\\xe6xLL\\x088\\xc6q\\xc5G\\xf6s\\xdf\\x14Q@\\x11\\xcb\\x16\\xd5\\xe7\\x14QE\\x00\\x7f'"
+                            }
+                        ],
+                        "dc_id": 2,
+                        "has_stickers": false,
+                        "video_sizes": []
+                    },
+                    "attributes": []
+                }
+            },
+            "entities": [
+                {
+                    "_": "types.MessageEntityBold",
+                    "offset": 27,
+                    "length": 9
+                },
+                {
+                    "_": "types.MessageEntityItalic",
+                    "offset": 38,
+                    "length": 9
+                },
+                {
+                    "_": "types.MessageEntityTextUrl",
+                    "offset": 49,
+                    "length": 9,
+                    "url": "https://t.me/HermannSaliter"
+                }
+            ]
+        }
+    }
+}
+2025-06-19 23:12:05,512 [INFO] PingTask stopped
+2025-06-19 23:12:05,514 [INFO] Disconnected
+2025-06-19 23:12:05,514 [INFO] NetworkTask stopped
+2025-06-19 23:12:05,515 [INFO] Session stopped
