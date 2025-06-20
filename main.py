@@ -186,7 +186,7 @@ class TelegramAuthWorker(QThread):
         try:
             client = Client(self.session_name, self.api_id, self.api_hash)
             client.connect()
-
+            
             # 1. Отправляем код всегда один раз
             try:
                 sent = client.send_code(self.phone)
@@ -194,13 +194,13 @@ class TelegramAuthWorker(QThread):
                 client.disconnect()
                 self.finished.emit(False, f"FLOOD_WAIT_{fw.value}", {})
                 return
-
+            
             self.phone_code_hash = sent.phone_code_hash
             self.finished.emit(True, "NEED_CODE", {"phone_code_hash": self.phone_code_hash})
 
             # Основной цикл ожидания ввода пользователя
             while not self._signed_in:
-                self.msleep(200)  # 0.2 секунды – нагрузка минимальна
+                self.msleep(200)  # 0.2 с – минимальная нагрузка
 
                 # --- Ввод кода ---
                 if self.phone_code and not self._signed_in:
@@ -208,7 +208,7 @@ class TelegramAuthWorker(QThread):
                         client.sign_in(
                             phone_number=self.phone,
                             phone_code_hash=self.phone_code_hash,
-                            phone_code=self.phone_code,
+                            phone_code=self.phone_code
                         )
                         self._signed_in = True
                     except errors.PhoneCodeInvalid:
