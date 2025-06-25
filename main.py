@@ -17,16 +17,98 @@ import time
 import datetime, pathlib
 import configparser
 import re
+from bs4 import BeautifulSoup
+from pathlib import Path
+import app_paths  # ensure USER_DATA_DIR is resolved early
+from app_paths import USER_DATA_DIR, user_file
 
 nest_asyncio.apply()
 
+# ─── Настройка рабочей директории ────────────────────────────────────────────
+# Все файлы, которые приложение создаёт (auth.log, accounts.json, sessions …)
+# теперь хранятся в каталоге `~/Library/Application Support/SLAVA` (macOS)
+# или аналогичном для других ОС. Переключаем `cwd`, чтобы существующий код
+# с относительными путями продолжал работать без больших изменений.
+os.chdir(USER_DATA_DIR)
+
 # Настраиваем логирование
 logging.basicConfig(
-    filename='auth.log',
+    filename=user_file('auth.log'),
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(message)s',
     encoding='utf-8'
 )
+
+# -------- Markdown V2 converter ---------
+# Преобразует упрощённый HTML (b/i/a/br,p) в Markdown V2.
+# • <b>text</b> → *text*
+# • <i>text</i> → _text_
+# • <a href="url">txt</a> → [txt](url)
+# • <br>, </p> → \n
+# Экранирует спец-символы Markdown V2 вне вставленной разметки.
+
+# Для legacy-Markdown достаточно экранировать 6 символов: _ * ` [ ] ( ) и сам символ обратного слеша.
+MD_SPECIALS = ['\\', '_', '*', '`', '[', ']', '(', ')']
+
+def _escape_md(text: str) -> str:
+    import re
+    # Формируем регэксп «любой из спец-символов»
+    specials_re = re.escape(''.join(MD_SPECIALS))
+    pattern = fr'([{specials_re}])'
+    return re.sub(pattern, r'\\\1', text)
+
+
+def _preprocess_html(raw: str) -> str:
+    """Грубая замена <span style="..."> на семантические теги перед парсингом."""
+    import re
+    # span c жирным
+    raw = re.sub(r"<span[^>]*font-weight:[^>]*>(.*?)</span>", r"<b>\1</b>", raw, flags=re.S | re.I)
+    # span c курсивом
+    raw = re.sub(r"<span[^>]*font-style\s*:\s*italic[^>]*>(.*?)</span>", r"<i>\1</i>", raw, flags=re.S | re.I)
+    return raw
+
+
+def html_to_md(html: str) -> str:
+    """Конвертирует HTML (QTextEdit) в Markdown (legacy) для Telegram."""
+    html = _preprocess_html(html)
+    soup = BeautifulSoup(html, 'html.parser')
+
+    def node2md(node) -> str:
+        from bs4.element import NavigableString, Tag
+        if isinstance(node, NavigableString):
+            return _escape_md(str(node))
+
+        if not isinstance(node, Tag):
+            return ''
+
+        name = node.name.lower()
+
+        if name in ('b', 'strong'):
+            inner = ''.join(node2md(c) for c in node.children)
+            return f"**{inner}**"
+        if name in ('i', 'em'):
+            inner = ''.join(node2md(c) for c in node.children)
+            return f"__{inner}__"
+        if name == 'a':
+            href = node.get('href', '')
+            body = ''.join(node2md(c) for c in node.children) or href
+            return f"[{body}]({href})"
+        if name in ('br',):
+            return '\n'
+        if name in ('p',):
+            # абзац = текст + пустая строка
+            inner = ''.join(node2md(c) for c in node.children)
+            return inner + '\n\n'
+
+        # контейнеры span/div и пр. – рекурсивно без собственных тегов
+        return ''.join(node2md(c) for c in node.children)
+
+    md = ''.join(node2md(child) for child in soup.body or soup.children)
+
+    import re
+    # >2 переводов подряд – схлапываем до 2
+    md = re.sub(r'\n{3,}', '\n\n', md).strip()
+    return md
 
 class AuthDialog(QDialog):
     def __init__(self, parent=None):
@@ -90,6 +172,9 @@ class TelegramWorker(QThread):
     
     def run(self):
         try:
+            # Убедимся, что родительская директория для .session-файла присутствует
+            Path(self.session_name).parent.mkdir(parents=True, exist_ok=True)
+            _dbg(f'TelegramWorker: open session {self.session_name}')
             app_client = Client(self.session_name, self.api_id, self.api_hash)
             app_client.connect()
             
@@ -184,6 +269,9 @@ class TelegramAuthWorker(QThread):
     
     def run(self):
         try:
+            # Убедимся, что родительская директория для .session-файла присутствует
+            Path(self.session_name).parent.mkdir(parents=True, exist_ok=True)
+            _dbg(f'TelegramAuthWorker: open session {self.session_name}')
             client = Client(self.session_name, self.api_id, self.api_hash)
             client.connect()
             
@@ -200,7 +288,7 @@ class TelegramAuthWorker(QThread):
 
             # Основной цикл ожидания ввода пользователя
             while not self._signed_in:
-                self.msleep(200)  # 0.2 с – минимальная нагрузка
+                self.msleep(200)  # 0.2 секунды – нагрузка минимальна
 
                 # --- Ввод кода ---
                 if self.phone_code and not self._signed_in:
@@ -208,7 +296,7 @@ class TelegramAuthWorker(QThread):
                         client.sign_in(
                             phone_number=self.phone,
                             phone_code_hash=self.phone_code_hash,
-                            phone_code=self.phone_code
+                            phone_code=self.phone_code,
                         )
                         self._signed_in = True
                     except errors.PhoneCodeInvalid:
@@ -255,7 +343,8 @@ class BroadcastWorker(QThread):
     def __init__(self, accounts_info: list[dict], message: str, min_delay: float, max_delay: float):
         super().__init__()
         self.accounts_info = accounts_info
-        self.message = self._sanitize_html(message)
+        # Конвертируем HTML из скрипта сразу в Markdown V2
+        self.message = html_to_md(message)
         self.min_delay = min_delay
         self.max_delay = max_delay
         self._stop_requested = False
@@ -276,6 +365,12 @@ class BroadcastWorker(QThread):
             name = acc["name"]
             try:
                 self.log.emit(f"<b>{name}</b>: подключение…")
+                # Гарантируем, что каталог для .session-файла существует
+                sess_path = Path(acc['session_name'])
+                sess_path.parent.mkdir(parents=True, exist_ok=True)
+                # Убедимся, что родительская директория для .session-файла присутствует
+                Path(acc['session_name']).parent.mkdir(parents=True, exist_ok=True)
+                _dbg(f'BroadcastWorker: open session {acc["session_name"]}')
                 client = Client(acc["session_name"], int(acc["api_id"]), acc["api_hash"])
                 client.connect()
             except Exception as e:
@@ -292,7 +387,10 @@ class BroadcastWorker(QThread):
                         if r.startswith('@'):
                             r=r[1:]
                         return r
-                    client.send_message(norm(recipient), self.message, parse_mode=ParseMode.HTML)
+                    _dbg(f'send_messages: send via {acc["session_name"]}')
+                    app_client = Client(acc["session_name"], int(acc["api_id"]), acc["api_hash"])
+                    app_client.connect()
+                    app_client.send_message(norm(recipient), self.message, parse_mode=ParseMode.DEFAULT)
                     self.sent_ok += 1
                     self.log.emit(f"{name}: ✅ {recipient}")
                 except errors.FloodWait as fw:
@@ -332,29 +430,6 @@ class BroadcastWorker(QThread):
 
         self.log.emit("<br>".join(report_lines))
         self.log.emit("<b>Рассылка остановлена</b>" if self._stop_requested else "<b>Все аккаунты обработаны</b>")
-
-    @staticmethod
-    def _sanitize_html(html: str) -> str:
-        """Приводит HTML из QTextEdit к формату, совместимому с Telegram."""
-        # Удаляем head/style
-        body_start = html.find('<body')
-        if body_start != -1:
-            body_start = html.find('>', body_start) + 1
-            body_end = html.find('</body>', body_start)
-            html = html[body_start:body_end]
-
-        # <span style="font-weight:600;"> → <b>
-        html = re.sub(r'<span[^>]*font-weight:[^>]*>(.*?)</span>', r'<b>\1</b>', html, flags=re.S)
-        # <span style="font-style:italic;"> → <i>
-        html = re.sub(r'<span[^>]*font-style:\s*italic[^>]*>(.*?)</span>', r'<i>\1</i>', html, flags=re.S)
-        # Убираем остальные span
-        html = re.sub(r'<span[^>]*>(.*?)</span>', r'\1', html, flags=re.S)
-        # <p> → ''   </p> → <br>
-        html = re.sub(r'<p[^>]*>', '', html)
-        html = re.sub(r'</p>', '<br>', html)
-        # Убираем стилевые атрибуты
-        html = re.sub(r' style="[^"]*"', '', html)
-        return html.strip()
 
 class TelegramApp(QMainWindow):
     def __init__(self):
@@ -665,7 +740,7 @@ class TelegramApp(QMainWindow):
                     QMessageBox.warning(self, "Ошибка", f"Не указаны получатели для {acc['name']}")
                     return
                 accounts_info.append({
-                    "session_name": f"sessions/{acc['phone'].replace('+','').replace(' ','')}",
+                    "session_name": str(user_file('sessions', acc['phone'].replace('+', '').replace(' ', ''))),
                     "api_id": acc['api_id'],
                     "api_hash": acc['api_hash'],
                     "name": acc['name'],
@@ -831,9 +906,7 @@ class TelegramApp(QMainWindow):
                 clear_btn.clicked.connect(clear_format)
 
             def html(self):
-                raw = self.editor.toHtml()
-                # Используем ту же функцию очистки, что и в BroadcastWorker
-                return BroadcastWorker._sanitize_html(raw)
+                return self.editor.toHtml()
 
         def add_script():
             name, ok = QInputDialog.getText(self, "Новый скрипт", "Имя файла (без расширения):")
@@ -998,8 +1071,7 @@ class TelegramApp(QMainWindow):
         except ValueError:
             QMessageBox.warning(self, "Ошибка", "API ID должен быть числом")
             return
-        session_name = f"sessions/{phone.replace('+', '').replace(' ', '')}"
-        os.makedirs('sessions', exist_ok=True)
+        session_name = str(user_file('sessions', phone.replace('+', '').replace(' ', '')))
         self.account_data = {
             'api_id': str(api_id),
             'api_hash': api_hash,
@@ -1080,7 +1152,7 @@ class TelegramApp(QMainWindow):
                 
             errors_list = []
             for acc in accounts:
-                session_name = f"sessions/{acc['phone'].replace('+', '').replace(' ', '')}"
+                session_name = str(user_file('sessions', acc['phone'].replace('+', '').replace(' ', '')))
                 try:
                     app_client = Client(session_name, int(acc['api_id']), acc['api_hash'])
                     app_client.connect()
@@ -1117,6 +1189,18 @@ class TelegramApp(QMainWindow):
         config = configparser.ConfigParser()
         config.read('settings.ini')
         return config
+
+# --- Debug helper ---
+def _dbg(msg: str):
+    """Append diagnostic line to ~/Desktop/myslava_debug.log (best-effort)."""
+    try:
+        log_path = pathlib.Path.home() / 'Desktop' / 'myslava_debug.log'
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with log_path.open('a', encoding='utf-8') as _f:
+            ts = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            _f.write(f"{ts} | {msg}\n")
+    except Exception:
+        pass
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

@@ -1,0 +1,35 @@
+# macOS
+.DS_Store
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+venv_build/
+
+# Distribution / build
+build/
+dist/
+*.egg-info/
+*.app/
+*.dmg
+
+# Logs & runtime data
+*.log
+broadcast_logs/
+sessions/
+
+# User data
+accounts.json
+scripts/
+
+# Tools / IDE
+.idea/
+.vscode/
+
+# PyInstaller build artifacts (сами *.spec оставляем в репо)
+# (исключаем только временную директорию build/, уже выше) 
