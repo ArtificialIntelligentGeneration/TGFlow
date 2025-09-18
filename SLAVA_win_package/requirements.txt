@@ -1,5 +1,0 @@
-PyQt6==6.6.1
-pyrogram==2.0.106
-tgcrypto==1.2.5
-nest-asyncio==1.5.8
-appdirs==1.4.4 

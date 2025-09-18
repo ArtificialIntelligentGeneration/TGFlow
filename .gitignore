@@ -22,10 +22,14 @@ dist/
 *.log
 broadcast_logs/
 sessions/
+**/*.session
+**/*.session-journal
 
 # User data
 accounts.json
+settings.ini
 scripts/
+auth.log
 
 # Tools / IDE
 .idea/
@@ -33,3 +37,16 @@ scripts/
 
 # PyInstaller build artifacts (сами *.spec оставляем в репо)
 # (исключаем только временную директорию build/, уже выше) 
+# SLAVA ignore (assistant)
+__pycache__/
+.venv*/
+venv/
+.env
+.env.*
+sessions/
+broadcast_logs/
+server/keys/
+server/.env
+server/.secrets
+accounts.json
+*.log

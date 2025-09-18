@@ -28,13 +28,36 @@ source "$VENV_DIR/bin/activate"
 pip install --upgrade pip
 pip install -r requirements.txt pyinstaller
 
-# 3. Генерируем icon.icns (если ещё нет)
-if [ -f "resources/icon.png" ] && [ ! -f "resources/icon.icns" ]; then
-  mkdir -p resources
-  echo "Конвертирую icon.png → icon.icns…"
-  TMP_ICNS="/tmp/icon_$$.icns"
-  sips -s format icns "resources/icon.png" --out "$TMP_ICNS" >/dev/null
-  mv "$TMP_ICNS" "resources/icon.icns"
+# 3. Подготавливаем иконку для сборки
+mkdir -p resources
+
+# Проверяем наличие ICNS файла в корне проекта
+if [ -f "icon.icns" ]; then
+  echo "Использую ICNS иконку из корня проекта: icon.icns"
+  cp "icon.icns" "resources/icon.icns"
+elif [ -f "28538791-c5e2-4ec8-9091-498b7e3e2ebd-_1_.ico" ]; then
+  echo "Использую основную иконку: 28538791-c5e2-4ec8-9091-498b7e3e2ebd-_1_.ico"
+  # Копируем ICO файл в resources для использования в spec-файлах
+  cp "28538791-c5e2-4ec8-9091-498b7e3e2ebd-_1_.ico" "resources/icon.ico"
+
+  # Пытаемся создать ICNS версию для лучшей совместимости с macOS
+  if [ ! -f "resources/icon.icns" ]; then
+    echo "Создаю ICNS версию иконки для macOS..."
+    # Если есть PNG файл, используем его для конвертации
+    if [ -f "resources/icon.png" ]; then
+      TMP_ICNS="/tmp/icon_$$.icns"
+      if sips -s format icns "resources/icon.png" --out "$TMP_ICNS" >/dev/null 2>&1; then
+        mv "$TMP_ICNS" "resources/icon.icns"
+        echo "✓ ICNS версия создана из PNG"
+      else
+        echo "⚠️ Не удалось создать ICNS из PNG, будет использоваться ICO"
+      fi
+    else
+      echo "⚠️ PNG файл не найден, ICNS не создан"
+    fi
+  fi
+else
+  echo "⚠️ Ни ICNS, ни основная ICO иконка не найдены"
 fi
 
 # 4. Собираем .app (без --onefile)
