@@ -1,0 +1,48 @@
+name: ci
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install deps
+        run: |
+          pip install -r server/requirements.txt
+      - name: Lint
+        run: |
+          cd server
+          ruff check .
+          black --check .
+      - name: Typecheck
+        run: |
+          cd server
+          mypy app || true
+      - name: Unit/Integration tests
+        run: |
+          cd server
+          pytest -q
+      - name: OpenAPI present
+        run: |
+          test -f server/openapi/licensing.yml
+      - name: Validate OpenAPI
+        run: |
+          python - <<'PY'
+          from openapi_spec_validator import validate_v3_spec
+          import yaml, sys
+          with open('server/openapi/licensing.yml') as f:
+              spec = yaml.safe_load(f)
+          validate_v3_spec(spec)
+          print('OpenAPI valid')
+          PY
+      - name: Docker build
+        run: |
+          docker build -f server/Dockerfile -t slava-lic-api:ci ./server
+
+
