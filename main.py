@@ -27,7 +27,6 @@ from app_paths import USER_DATA_DIR, user_file
 from filelock import FileLock, Timeout
 from typing import Optional, Dict, Union
 
-from antispam_manager import AntiSpamManager
 from broadcast_state import BroadcastState
 from client_utils import normalize_recipient
 # Проверка версии Python для zoneinfo
@@ -624,7 +623,7 @@ class OptimizedBroadcastWorker(QThread):
     def __init__(self, accounts_info: list[dict], message: str, media_files: list[str] = None,
                  inter_wave_delay_min: float = 30.0, inter_wave_delay_max: float = 60.0, scheduled_params: dict = None,
                  floodwait_auto_wait: bool = False, floodwait_max_wait: int = 60,
-                 floodwait_exclude_threshold: int = 300, antispam_manager = None,
+                 floodwait_exclude_threshold: int = 300,
                  dry_run: bool = False):
         super().__init__()
         self.accounts_info = accounts_info
@@ -637,7 +636,6 @@ class OptimizedBroadcastWorker(QThread):
         self.floodwait_auto_wait = floodwait_auto_wait          # Автоожидание FloodWait
         self.floodwait_max_wait = floodwait_max_wait            # Макс. время ожидания FloodWait
         self.floodwait_exclude_threshold = floodwait_exclude_threshold  # Порог исключения аккаунта
-        self.antispam_manager = antispam_manager                # AntiSpam manager instance
         self.broadcast_state = None                             # Broadcast state for resume functionality
         self.session_id = None                                  # Session ID for state management
         self._stop_requested = False
@@ -909,11 +907,7 @@ class OptimizedBroadcastWorker(QThread):
                 break
 
             # Проверяем, не находится ли аккаунт в паузе
-            if self.antispam_manager:
-                is_paused, reason = self.antispam_manager.is_account_paused(name)
-                if is_paused:
-                    self.log.emit(f"<span style='color:orange'>{name}: ⏸️ Пропуск (пауза: {reason})</span>")
-                    continue
+
 
             recipient = acc["recipients"][wave_idx]
             success = self._send_single_message(name, acc, recipient, wave_idx + 1)
@@ -1438,8 +1432,7 @@ class OptimizedBroadcastWorker(QThread):
             self.log.emit(f"{account_name}: ✅ #{message_num} → {recipient}{media_info}{schedule_info}")
 
             # Сбрасываем FloodWait множитель при успешной отправке
-            if self.antispam_manager:
-                self.antispam_manager.reset_account_multiplier(account_name)
+
 
             # Отмечаем сообщение как отправленное в состоянии рассылки
             if self.broadcast_state:
@@ -1461,10 +1454,7 @@ class OptimizedBroadcastWorker(QThread):
                 return False
             elif self.floodwait_auto_wait and wait_seconds <= self.floodwait_max_wait:
                 # Используем адаптивные паузы из AntiSpamManager
-                if self.antispam_manager:
-                    adapted_wait, explanation = self.antispam_manager.get_adaptive_floodwait(account_name, wait_seconds)
-                else:
-                    adapted_wait, explanation = wait_seconds, f"базовая пауза {wait_seconds}s"
+                adapted_wait, explanation = wait_seconds, f"базовая пауза {wait_seconds}s"
 
                 self.log.emit(f"<span style='color:orange'>{account_name}: ⏳ FloodWait {wait_seconds}s – {explanation}...</span>")
                 logging.warning(f"FLOOD_WAIT_ADAPTIVE: {account_name} -> {recipient}: {wait_seconds}s -> {adapted_wait}s ({explanation})")
@@ -1496,15 +1486,7 @@ class OptimizedBroadcastWorker(QThread):
         except errors.PeerFlood:
             # Используем AntiSpamManager для обработки PeerFlood с паузой
             self.sent_fail += 1
-            self.error_reasons.append(f"{account_name}: PEER_FLOOD – пауза {self.antispam_manager.peerflood_pause_minutes} мин")
-
-            # Обработаем через AntiSpamManager
-            if self.antispam_manager:
-                client = self._get_client(account_name, account_data)
-                if client:
-                    self.antispam_manager.handle_peerflood(account_name, client, self.log.emit)
-
-            logging.error(f"PEER_FLOOD_PAUSED: {account_name} -> {recipient}: пауза {self.antispam_manager.peerflood_pause_minutes} мин")
+            self.error_reasons.append(f"{account_name}: PEER_FLOOD")
             return False
 
         except errors.UserIsBlocked:
@@ -2028,7 +2010,6 @@ class TelegramApp(QMainWindow):
 
 
 
-        self._init_antispam()
 
         # Создаем центральный виджет
         central_widget = QWidget()
@@ -2118,24 +2099,6 @@ class TelegramApp(QMainWindow):
                 continue
         
         print("Предупреждение: иконка не найдена, приложение будет без иконки")
-
-    def _init_antispam(self):
-        """Initialize AntiSpam manager"""
-        cfg = self.load_config()
-
-        # Initialize AntiSpam manager
-        antispam_config = {
-            'peerflood_pause_minutes': cfg.getint('antispam', 'peerflood_pause_minutes', fallback=30),
-            'peerflood_max_pause_hours': cfg.getint('antispam', 'peerflood_max_pause_hours', fallback=24),
-            'spambot_auto_start': cfg.getboolean('antispam', 'spambot_auto_start', fallback=False),
-            'spambot_delay_seconds': cfg.getint('antispam', 'spambot_delay_seconds', fallback=10),
-            'spambot_max_tries': cfg.getint('antispam', 'spambot_max_tries', fallback=3),
-            'floodwait_adaptive': cfg.getboolean('antispam', 'floodwait_adaptive', fallback=False),
-            'floodwait_base_seconds': cfg.getint('antispam', 'floodwait_base_seconds', fallback=60),
-            'floodwait_max_multiplier': cfg.getint('antispam', 'floodwait_max_multiplier', fallback=5),
-            'floodwait_max_pause_seconds': cfg.getint('antispam', 'floodwait_max_pause_seconds', fallback=1800)
-        }
-        self.antispam_manager = AntiSpamManager(antispam_config)
 
     def setup_accounts_tab(self):
         layout = QVBoxLayout(self.accounts_tab)
@@ -2497,76 +2460,6 @@ class TelegramApp(QMainWindow):
             ))
 
         # Настройки антиспама
-        antispam_layout = QVBoxLayout()
-        antispam_header = QLabel("Антиспам")
-        antispam_header.setStyleSheet("font-weight: bold; margin-top: 10px;")
-        antispam_layout.addWidget(antispam_header)
-
-        # PeerFlood settings
-        peerflood_layout = QFormLayout()
-        peerflood_layout.setContentsMargins(20, 0, 0, 0)
-
-        self.spambot_auto_checkbox = QCheckBox("Автозапуск @SpamBot при PeerFlood")
-        self.spambot_auto_checkbox.setToolTip("Автоматически запускать @SpamBot для снятия ограничений при PeerFlood")
-        self.spambot_auto_checkbox.setChecked(config.getboolean('antispam', 'spambot_auto_start', fallback=False))
-        peerflood_layout.addRow(self.spambot_auto_checkbox)
-
-        self.spambot_delay_input = QLineEdit(config.get('antispam', 'spambot_delay_seconds', fallback='10'))
-        self.spambot_delay_input.setFixedWidth(50)
-        self.spambot_delay_input.setToolTip("Задержка в секундах перед запуском @SpamBot")
-        self.spambot_delay_input.setEnabled(self.spambot_auto_checkbox.isChecked())
-        peerflood_layout.addRow("Задержка перед @SpamBot (сек):", self.spambot_delay_input)
-
-        self.peerflood_pause_input = QLineEdit(config.get('antispam', 'peerflood_pause_minutes', fallback='30'))
-        self.peerflood_pause_input.setFixedWidth(50)
-        self.peerflood_pause_input.setToolTip("Пауза в минутах при PeerFlood")
-        peerflood_layout.addRow("Пауза при PeerFlood (мин):", self.peerflood_pause_input)
-
-        self.spambot_max_tries_input = QLineEdit(config.get('antispam', 'spambot_max_tries', fallback='3'))
-        self.spambot_max_tries_input.setFixedWidth(50)
-        self.spambot_max_tries_input.setToolTip("Максимальное количество попыток запуска @SpamBot")
-        self.spambot_max_tries_input.setEnabled(self.spambot_auto_checkbox.isChecked())
-        peerflood_layout.addRow("Макс. попыток @SpamBot:", self.spambot_max_tries_input)
-
-        antispam_layout.addLayout(peerflood_layout)
-
-        # FloodWait adaptive settings
-        floodwait_adaptive_layout = QFormLayout()
-        floodwait_adaptive_layout.setContentsMargins(20, 10, 0, 0)
-
-        self.floodwait_adaptive_checkbox = QCheckBox("Адаптивные паузы FloodWait")
-        self.floodwait_adaptive_checkbox.setToolTip("Увеличивать паузы FloodWait экспоненциально при повторных ошибках")
-        self.floodwait_adaptive_checkbox.setChecked(config.getboolean('antispam', 'floodwait_adaptive', fallback=False))
-        floodwait_adaptive_layout.addRow(self.floodwait_adaptive_checkbox)
-
-        self.floodwait_base_input = QLineEdit(config.get('antispam', 'floodwait_base_seconds', fallback='60'))
-        self.floodwait_base_input.setFixedWidth(50)
-        self.floodwait_base_input.setToolTip("Базовая пауза FloodWait в секундах")
-        self.floodwait_base_input.setEnabled(self.floodwait_adaptive_checkbox.isChecked())
-        floodwait_adaptive_layout.addRow("Базовая пауза (сек):", self.floodwait_base_input)
-
-        self.floodwait_max_mult_input = QLineEdit(config.get('antispam', 'floodwait_max_multiplier', fallback='5'))
-        self.floodwait_max_mult_input.setFixedWidth(50)
-        self.floodwait_max_mult_input.setToolTip("Максимальный множитель для адаптивных пауз")
-        self.floodwait_max_mult_input.setEnabled(self.floodwait_adaptive_checkbox.isChecked())
-        floodwait_adaptive_layout.addRow("Макс. множитель:", self.floodwait_max_mult_input)
-
-        antispam_layout.addLayout(floodwait_adaptive_layout)
-
-        # Connect handlers
-        self.spambot_auto_checkbox.stateChanged.connect(
-            lambda: (
-                self.spambot_delay_input.setEnabled(self.spambot_auto_checkbox.isChecked()),
-                self.spambot_max_tries_input.setEnabled(self.spambot_auto_checkbox.isChecked())
-            ))
-
-        self.floodwait_adaptive_checkbox.stateChanged.connect(
-            lambda: (
-                self.floodwait_base_input.setEnabled(self.floodwait_adaptive_checkbox.isChecked()),
-                self.floodwait_max_mult_input.setEnabled(self.floodwait_adaptive_checkbox.isChecked())
-            ))
-
-        advanced_container_layout.addLayout(antispam_layout)
 
         # Отложенная отправка
         scheduled_layout = QVBoxLayout()
@@ -3139,15 +3032,6 @@ class TelegramApp(QMainWindow):
         cfg.set('floodwait','exclude_threshold_seconds',self.floodwait_exclude_threshold_input.text())
 
         # Сохраняем настройки антиспама
-        if not cfg.has_section('antispam'):
-            cfg.add_section('antispam')
-        cfg.set('antispam','peerflood_pause_minutes',self.peerflood_pause_input.text())
-        cfg.set('antispam','spambot_auto_start',str(self.spambot_auto_checkbox.isChecked()))
-        cfg.set('antispam','spambot_delay_seconds',self.spambot_delay_input.text())
-        cfg.set('antispam','spambot_max_tries',self.spambot_max_tries_input.text())
-        cfg.set('antispam','floodwait_adaptive',str(self.floodwait_adaptive_checkbox.isChecked()))
-        cfg.set('antispam','floodwait_base_seconds',self.floodwait_base_input.text())
-        cfg.set('antispam','floodwait_max_multiplier',self.floodwait_max_mult_input.text())
 
         with open('settings.ini','w', encoding='utf-8') as f:
             cfg.write(f)
@@ -3257,7 +3141,6 @@ class TelegramApp(QMainWindow):
                                         floodwait_auto_wait=floodwait_auto_wait,
                                         floodwait_max_wait=floodwait_max_wait,
                                         floodwait_exclude_threshold=floodwait_exclude_threshold,
-                                        antispam_manager=self.antispam_manager,
                                         dry_run=self.dry_run_checkbox.isChecked())
         worker.log.connect(lambda line: log_view.append(line))
 

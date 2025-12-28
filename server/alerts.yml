@@ -1,0 +1,106 @@
+groups:
+  - name: slava_licensing_alerts
+    rules:
+      # 5xx Error Rate Alert
+      - alert: High5xxErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          service: slava-licensing-api
+        annotations:
+          summary: "High 5xx error rate detected"
+          description: "5xx error rate is {{ $value | printf \"%.2f\" }} (threshold: 0.05)"
+          runbook_url: "https://github.com/your-org/slava-licensing/wiki/5xx-errors"
+
+      # High Latency Alert
+      - alert: HighRequestLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2.0
+        for: 5m
+        labels:
+          severity: warning
+          service: slava-licensing-api
+        annotations:
+          summary: "High request latency detected"
+          description: "95th percentile latency is {{ $value | printf \"%.2f\" }}s (threshold: 2.0s)"
+          runbook_url: "https://github.com/your-org/slava-licensing/wiki/high-latency"
+
+      # Database Connection Issues
+      - alert: DatabaseConnectionError
+        expr: up{job="slava-licensing-api", instance=~".*"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: slava-licensing-api
+        annotations:
+          summary: "Database connection lost"
+          description: "SLAVA Licensing API cannot connect to database"
+          runbook_url: "https://github.com/your-org/slava-licensing/wiki/database-issues"
+
+      # Rate Limiting Triggered
+      - alert: RateLimitExceeded
+        expr: rate(http_requests_total{status="429"}[5m]) > 10
+        for: 3m
+        labels:
+          severity: warning
+          service: slava-licensing-api
+        annotations:
+          summary: "Rate limiting triggered frequently"
+          description: "429 responses rate: {{ $value | printf \"%.1f\" }}/min"
+          runbook_url: "https://github.com/your-org/slava-licensing/wiki/rate-limiting"
+
+      # Memory Usage Alert
+      - alert: HighMemoryUsage
+        expr: (1 - process_resident_memory_bytes / process_virtual_memory_bytes) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: slava-licensing-api
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value | printf \"%.1f\" }}% (threshold: 85%)"
+
+      # Disk Space Alert
+      - alert: LowDiskSpace
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) * 100 < 10
+        for: 5m
+        labels:
+          severity: critical
+          service: slava-licensing-api
+        annotations:
+          summary: "Low disk space"
+          description: "Disk space available: {{ $value | printf \"%.1f\" }}% (threshold: 10%)"
+
+      # API Endpoint Specific Alerts
+      - alert: LicenseEndpointFailing
+        expr: rate(http_requests_total{endpoint="/license", status=~"5.."}[5m]) / rate(http_requests_total{endpoint="/license"}[5m]) > 0.1
+        for: 3m
+        labels:
+          severity: critical
+          service: slava-licensing-api
+          endpoint: "/license"
+        annotations:
+          summary: "License endpoint failing"
+          description: "/license 5xx rate: {{ $value | printf \"%.2f\" }} (threshold: 0.1)"
+
+      - alert: UsageReserveEndpointSlow
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{endpoint=~"/usage/reserve"}[5m])) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+          service: slava-licensing-api
+          endpoint: "/usage/reserve"
+        annotations:
+          summary: "Usage reserve endpoint slow"
+          description: "/usage/reserve 95th percentile: {{ $value | printf \"%.2f\" }}s (threshold: 1.0s)"
+
+      - alert: UsageCommitEndpointFailing
+        expr: rate(http_requests_total{endpoint="/usage/commit", status=~"5.."}[5m]) > 5
+        for: 3m
+        labels:
+          severity: critical
+          service: slava-licensing-api
+          endpoint: "/usage/commit"
+        annotations:
+          summary: "Usage commit endpoint failing"
+          description: "/usage/commit 5xx rate: {{ $value | printf \"%.1f\" }}/min (threshold: 5/min)"
