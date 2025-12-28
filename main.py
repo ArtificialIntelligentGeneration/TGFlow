@@ -25,8 +25,8 @@ from pathlib import Path
 import app_paths  # ensure USER_DATA_DIR is resolved early
 from app_paths import USER_DATA_DIR, user_file
 from filelock import FileLock, Timeout
-from typing import Optional, Dict
-from license_client import LicenseClient, LicenseStorage, LicenseAPIError
+from typing import Optional, Dict, Union
+
 from antispam_manager import AntiSpamManager
 from broadcast_state import BroadcastState
 from client_utils import normalize_recipient
@@ -158,7 +158,7 @@ def contains_url(text: str) -> bool:
 # функция, которая делает несколько повторов с короткой задержкой, тем самым
 # надёжно устраняя временный конфликт.
 
-def open_client(session_name: str, api_id: int | str, api_hash: str,
+def open_client(session_name: str, api_id: Union[int, str], api_hash: str,
                 retries: int = 3, delay: float = 0.3, start_client: bool = True) -> Client:
     """Возвращает *подключённый* Pyrogram-клиент.
 
@@ -411,9 +411,9 @@ class TelegramAuthWorker(QThread):
         self.phone = phone
 
         # Данные, которые пополняет GUI
-        self.phone_code: str | None = None
-        self.phone_code_hash: str | None = None
-        self.password: str | None = None
+        self.phone_code: Optional[str] = None
+        self.phone_code_hash: Optional[str] = None
+        self.password: Optional[str] = None
 
         # служебные флаги
         self._signed_in = False
@@ -1649,10 +1649,375 @@ class OptimizedBroadcastWorker(QThread):
 
         self.log.emit(completion_msg if not self._stop_requested else "<b>⏹️  Рассылка остановлена</b>")
 
+class ChatListWorker(QThread):
+    partial = pyqtSignal(list)
+    success = pyqtSignal(list)
+    error = pyqtSignal(str)
+
+    def __init__(self, account_data: dict, batch_size: int = 200, max_items: Optional[int] = None):
+        super().__init__()
+        self.account_data = account_data
+        self.batch_size = max(10, int(batch_size))
+        self.max_items = max_items if (isinstance(max_items, int) and max_items > 0) else None
+
+    def run(self):
+        cli = None
+        try:
+            session_name = self.account_data['session_name']
+            api_id = self.account_data['api_id']
+            api_hash = self.account_data['api_hash']
+            cli = open_client(session_name, api_id, api_hash)
+            me = cli.get_me()
+
+            # Сбор диалогов с прогрессивной выдачей
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+                async def _collect_progressive():
+                    collected = 0
+                    batch_dialogs = []
+                    async for d in cli.get_dialogs():
+                        batch_dialogs.append(d)
+                        collected += 1
+                        if self.max_items and collected >= self.max_items:
+                            break
+                        if len(batch_dialogs) >= self.batch_size:
+                            chats_partial = self._dialogs_to_chats(cli, me.id, batch_dialogs)
+                            if chats_partial:
+                                self.partial.emit(chats_partial)
+                            batch_dialogs = []
+                    # остаток
+                    if batch_dialogs:
+                        chats_partial = self._dialogs_to_chats(cli, me.id, batch_dialogs)
+                        if chats_partial:
+                            self.partial.emit(chats_partial)
+
+                loop.run_until_complete(_collect_progressive())
+            except Exception as e:
+                self.error.emit(f"Ошибка загрузки чатов: {e}")
+                return
+
+            # Завершение: сигнализируем, что прогрузка закончена
+            self.success.emit([])
+        except Exception as e:
+            self.error.emit(str(e))
+        finally:
+            try:
+                if cli is not None:
+                    try:
+                        cli.stop()
+                    except Exception:
+                        try:
+                            cli.disconnect()
+                        except Exception:
+                            pass
+                    if hasattr(cli, "_file_lock"):
+                        try:
+                            cli._file_lock.release()
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+    def _dialogs_to_chats(self, cli: Client, my_id: int, dialogs: list) -> list[dict]:
+        chats: list[dict] = []
+        for d in dialogs:
+            ch = getattr(d, 'chat', None)
+            if not ch:
+                continue
+            if ch.type not in (ChatType.GROUP, ChatType.SUPERGROUP, ChatType.CHANNEL):
+                continue
+            username = getattr(ch, 'username', None)
+            address = f"@{username}" if username else str(ch.id)
+            # недавняя активность
+            recent_ts = 0
+            try:
+                msg = getattr(d, 'top_message', None)
+                dt = getattr(msg, 'date', None)
+                if dt:
+                    recent_ts = int(dt.timestamp()) if hasattr(dt, 'timestamp') else 0
+            except Exception:
+                recent_ts = 0
+
+            can_write = None
+            hint = None
+            try:
+                member = cli.get_chat_member(ch.id, my_id)
+                status = getattr(member, 'status', None)
+                if ch.type == ChatType.CHANNEL:
+                    can_write = status in (ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER)
+                    if not can_write:
+                        hint = "Нет прав на публикацию в канале"
+                else:
+                    if status == ChatMemberStatus.BANNED:
+                        can_write = False
+                        hint = "Пользователь забанен в чате"
+                    elif status == ChatMemberStatus.RESTRICTED:
+                        perms = getattr(member, 'permissions', None)
+                        allowed = getattr(perms, 'can_send_messages', True) if perms is not None else False
+                        can_write = bool(allowed)
+                        if not can_write:
+                            hint = "Ограничение на отправку сообщений"
+                    else:
+                        can_write = True
+            except Exception:
+                can_write = None
+                hint = "Права не определены"
+
+            chats.append({
+                'id': ch.id,
+                'title': ch.title or ch.first_name or str(ch.id),
+                'username': username,
+                'type': ch.type.name,
+                'address': address,
+                'can_write': can_write,
+                'hint': hint,
+                'recent_ts': recent_ts,
+            })
+
+        # Сортировка: недавние сверху, затем A→Z
+        chats.sort(key=lambda c: (-int(c.get('recent_ts') or 0), (c['title'] or '').lower()))
+        return chats
+
+
+class PrecheckWorker(QThread):
+    log = pyqtSignal(str)
+    progress = pyqtSignal(int, str)
+    done = pyqtSignal(int, int)
+
+    def __init__(self, accounts_info: list[dict]):
+        super().__init__()
+        self.accounts_info = accounts_info
+        self._stop = False
+
+    def stop(self):
+        self._stop = True
+
+    def run(self):
+        total_ok = 0
+        total_fail = 0
+        try:
+            self.progress.emit(0, "Предпроверка получателей...")
+            # Iterate accounts
+            for acc_idx, acc in enumerate(self.accounts_info):
+                if self._stop:
+                    break
+                name = acc.get('name', 'account')
+                self.log.emit(f"<b>👤 {name}</b>")
+                try:
+                    cli = open_client(acc['session_name'], acc['api_id'], acc['api_hash'])
+                    me = cli.get_me()
+                except Exception as e:
+                    self.log.emit(f"<span style='color:red'>❌ Не удалось открыть сессию: {e}</span>")
+                    total_fail += len(acc.get('recipients', []))
+                    continue
+
+                recs = acc.get('recipients', [])
+                for i, r in enumerate(recs, start=1):
+                    if self._stop:
+                        break
+                    nr = normalize_recipient(r)
+                    target = nr[1:] if nr.startswith('@') else nr
+                    try:
+                        chat = cli.get_chat(target)
+                        # Determine permission
+                        can_write = True
+                        hint = None
+                        try:
+                            member = cli.get_chat_member(chat.id, me.id)
+                            status = getattr(member, 'status', None)
+                            from pyrogram.enums import ChatType as _CT, ChatMemberStatus as _CMS
+                            if chat.type == _CT.CHANNEL:
+                                can_write = status in (_CMS.ADMINISTRATOR, _CMS.OWNER)
+                                if not can_write:
+                                    hint = "нет прав публикации"
+                            else:
+                                if status == _CMS.BANNED:
+                                    can_write = False
+                                    hint = "бан"
+                                elif status == _CMS.RESTRICTED:
+                                    perms = getattr(member, 'permissions', None)
+                                    allowed = getattr(perms, 'can_send_messages', True) if perms is not None else False
+                                    can_write = bool(allowed)
+                                    if not can_write:
+                                        hint = "ограничение на отправку"
+                        except Exception:
+                            # If check failed — unknown, but chat exists
+                            can_write = True
+
+                        if can_write:
+                            total_ok += 1
+                            self.log.emit(f"✅ {nr} — OK")
+                        else:
+                            total_fail += 1
+                            self.log.emit(f"<span style='color:orange'>⚠️ {nr} — нет прав ({hint})</span>")
+                    except Exception as e:
+                        total_fail += 1
+                        self.log.emit(f"<span style='color:red'>❌ {nr} — недоступен ({e})</span>")
+
+                # Disconnect client
+                try:
+                    cli.stop()
+                except Exception:
+                    try:
+                        cli.disconnect()
+                    except Exception:
+                        pass
+
+                self.progress.emit(int(((acc_idx + 1) / max(1, len(self.accounts_info))) * 100), "...")
+
+        except Exception as e:
+            self.log.emit(f"<span style='color:red'>❌ Ошибка предпроверки: {e}</span>")
+        finally:
+            self.done.emit(total_ok, total_fail)
+
+class ChatPickerDialog(QDialog):
+    def __init__(self, parent, account_name: str, chats: list[dict], on_refresh=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"Чаты — {account_name}")
+        self.setModal(True)
+        self._all_chats = chats or []  # list of {id, title, username, type, address, can_write, hint}
+        self._filtered = list(self._all_chats)
+        self._on_refresh = on_refresh
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
+
+        # Top: search + refresh
+        top_row = QHBoxLayout()
+        top_row.addWidget(QLabel("Поиск:"))
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Название или @username")
+        top_row.addWidget(self.search_input, 1)
+        self.refresh_btn = QPushButton("Обновить")
+        self.refresh_btn.setProperty("role", "secondary")
+        top_row.addWidget(self.refresh_btn)
+        layout.addLayout(top_row)
+
+        # Loading / status
+        self.progress = QProgressBar()
+        self.progress.setRange(0, 0)
+        self.progress.setVisible(False)
+        layout.addWidget(self.progress)
+        self.status_label = QLabel("")
+        self.status_label.setStyleSheet("color:#c97a7a;")
+        layout.addWidget(self.status_label)
+
+        # List and selection controls
+        controls = QHBoxLayout()
+        select_all_btn = QPushButton("Выбрать все")
+        clear_sel_btn = QPushButton("Снять выделение")
+        select_all_btn.setProperty("role", "secondary")
+        clear_sel_btn.setProperty("role", "secondary")
+        controls.addWidget(select_all_btn)
+        controls.addWidget(clear_sel_btn)
+        controls.addStretch()
+        layout.addLayout(controls)
+
+        self.list = QListWidget()
+        self.list.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
+        layout.addWidget(self.list, 1)
+
+        # Buttons
+        btns = QHBoxLayout()
+        ok_btn = QPushButton("OK")
+        ok_btn.setProperty("role", "primary")
+        cancel_btn = QPushButton("Отмена")
+        cancel_btn.setProperty("role", "secondary")
+        btns.addStretch()
+        btns.addWidget(ok_btn)
+        btns.addWidget(cancel_btn)
+        layout.addLayout(btns)
+
+        # Handlers
+        def populate(items: list[dict]):
+            self.list.clear()
+            for ch in items:
+                disp_username = f" (@{ch['username']})" if ch.get('username') else ""
+                prefix = ""
+                if ch.get('can_write') is False:
+                    prefix = "🚫 "
+                item = QListWidgetItem(f"{prefix}{ch['title']}{disp_username}\n{ch['address']}")
+                item.setData(Qt.ItemDataRole.UserRole, ch['address'])
+                if ch.get('hint'):
+                    item.setToolTip(ch['hint'])
+                self.list.addItem(item)
+
+        self._populate = populate
+        populate(self._filtered)
+
+        # Debounce поиска
+        self._debounce_timer = QTimer(self)
+        self._debounce_timer.setSingleShot(True)
+        self._debounce_timer.setInterval(350)
+
+        def apply_filter_now():
+            t = (self.search_input.text() or "").strip().lower()
+            if not t:
+                self._filtered = list(self._all_chats)
+            else:
+                self._filtered = [c for c in self._all_chats if t in (c['title'] or '').lower() or (c.get('username') or '').lower().startswith(t.lstrip('@')) or t in c['address']]
+            populate(self._filtered)
+
+        self._debounce_timer.timeout.connect(apply_filter_now)
+        def on_search_changed(_):
+            self._debounce_timer.start()
+        self.search_input.textChanged.connect(on_search_changed)
+
+        def select_all():
+            for i in range(self.list.count()):
+                it = self.list.item(i)
+                it.setSelected(True)
+
+        def clear_selection():
+            self.list.clearSelection()
+
+        select_all_btn.clicked.connect(select_all)
+        clear_sel_btn.clicked.connect(clear_selection)
+        ok_btn.clicked.connect(self.accept)
+        cancel_btn.clicked.connect(self.reject)
+        self.refresh_btn.clicked.connect(lambda: self._on_refresh and self._on_refresh(True, self))
+
+        # Счётчик выбранных
+        self.selection_label = QLabel("")
+        layout.addWidget(self.selection_label)
+        def update_count():
+            self.selection_label.setText(f"Выбрано: {len(self.list.selectedItems())}")
+        self.list.itemSelectionChanged.connect(update_count)
+        update_count()
+
+    def selected_addresses(self) -> list[str]:
+        addrs: list[str] = []
+        for it in self.list.selectedItems():
+            addr = it.data(Qt.ItemDataRole.UserRole)
+            if addr:
+                addrs.append(addr)
+        return addrs
+
+    def set_loading(self, is_loading: bool, text: str = ""):
+        try:
+            self.progress.setVisible(is_loading)
+            self.status_label.setText(text or ("Загрузка..." if is_loading else ""))
+        except Exception:
+            pass
+
+    def show_error(self, text: str):
+        try:
+            self.status_label.setText(text or "")
+        except Exception:
+            pass
+
+    def refresh_with(self, chats: list[dict]):
+        self._all_chats = chats or []
+        self._filtered = list(self._all_chats)
+        self._populate(self._filtered)
+
 class TelegramApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Telegram Sender")
+        self.setWindowTitle("TGFlow")
         # Флаг, предотвращающий конкурентные попытки авторизации
         self.is_auth_in_progress = False
 
@@ -1661,8 +2026,9 @@ class TelegramApp(QMainWindow):
 
         self.setMinimumSize(800, 600)
 
-        # Инициализация клиента лицензий
-        self._init_license_client()
+
+
+        self._init_antispam()
 
         # Создаем центральный виджет
         central_widget = QWidget()
@@ -1683,9 +2049,7 @@ class TelegramApp(QMainWindow):
         self.accounts_tab = QWidget()
         self.tabs.addTab(self.accounts_tab, "Аккаунты")
 
-        # 3. «Профиль»
-        self.profile_tab = QWidget()
-        self.tabs.addTab(self.profile_tab, "Профиль")
+
 
         # 4. «Скрипты» (заглушка)
         self.scripts_tab = QWidget()
@@ -1702,7 +2066,7 @@ class TelegramApp(QMainWindow):
         # Настройка вкладок
         self.setup_broadcast_tab()
         self.setup_accounts_tab()
-        self.setup_profile_tab()
+
         self.setup_scripts_tab()
         self.setup_history_tab()
         self.setup_about_tab()
@@ -1755,28 +2119,9 @@ class TelegramApp(QMainWindow):
         
         print("Предупреждение: иконка не найдена, приложение будет без иконки")
 
-    def _init_license_client(self):
-        """Initialize license client and load stored token"""
+    def _init_antispam(self):
+        """Initialize AntiSpam manager"""
         cfg = self.load_config()
-
-        # Get API settings
-        base_url = cfg.get('api', 'base_url', fallback='https://stage.api.example.com')
-        timeout = cfg.getint('api', 'timeout_seconds', fallback=10)
-        jwks_url = cfg.get('api', 'jwks_url', fallback=None)
-        token_path = cfg.get('api', 'jwt_token_path', fallback=str(user_file('license.json')))
-
-        # Initialize client
-        self.license_client = LicenseClient(base_url, timeout, jwks_url)
-        self.license_storage = LicenseStorage(Path(token_path))
-
-        # Load stored token
-        token_data = self.license_storage.load_token()
-        if token_data:
-            self.license_client.set_token(token_data['token'])
-
-        # License state
-        self.current_license = None
-        self.is_logged_in = self.license_client.get_token() is not None
 
         # Initialize AntiSpam manager
         antispam_config = {
@@ -1940,207 +2285,6 @@ class TelegramApp(QMainWindow):
 
         rename_acc_btn.clicked.connect(rename_account)
         del_acc_btn.clicked.connect(delete_account)
-
-    def setup_profile_tab(self):
-        """Setup the Profile tab with login form and license info"""
-        layout = QVBoxLayout(self.profile_tab)
-
-        # Status label
-        self.profile_status_label = QLabel("Статус: Не авторизован")
-        layout.addWidget(self.profile_status_label)
-
-        # Login form (initially visible)
-        self.login_form = QWidget()
-        login_layout = QVBoxLayout(self.login_form)
-
-        login_layout.addWidget(QLabel("Вход в систему лицензий"))
-
-        # Email input
-        email_layout = QHBoxLayout()
-        email_layout.addWidget(QLabel("Email:"))
-        self.profile_email_input = QLineEdit()
-        self.profile_email_input.setPlaceholderText("user@example.com")
-        email_layout.addWidget(self.profile_email_input)
-        login_layout.addLayout(email_layout)
-
-        # Password input
-        password_layout = QHBoxLayout()
-        password_layout.addWidget(QLabel("Пароль:"))
-        self.profile_password_input = QLineEdit()
-        self.profile_password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        password_layout.addWidget(self.profile_password_input)
-        login_layout.addLayout(password_layout)
-
-        # Login button
-        self.login_button = QPushButton("Войти")
-        self.login_button.setProperty("role", "primary")
-        self.login_button.clicked.connect(self.handle_login)
-        login_layout.addWidget(self.login_button)
-
-        layout.addWidget(self.login_form)
-
-        # License info (initially hidden)
-        self.license_info = QWidget()
-        license_layout = QVBoxLayout(self.license_info)
-
-        license_layout.addWidget(QLabel("Информация о лицензии"))
-
-        # Plan info
-        self.plan_label = QLabel("План: Загрузка...")
-        license_layout.addWidget(self.plan_label)
-
-        # Quota info
-        quota_layout = QHBoxLayout()
-        self.quota_label = QLabel("Квота: Загрузка...")
-        quota_layout.addWidget(self.quota_label)
-        quota_layout.addStretch()
-        license_layout.addLayout(quota_layout)
-
-        # Reset date
-        self.reset_label = QLabel("Сброс квоты: Загрузка...")
-        license_layout.addWidget(self.reset_label)
-
-        # Logout button
-        self.logout_button = QPushButton("Выйти")
-        self.logout_button.setProperty("role", "danger")
-        self.logout_button.clicked.connect(self.handle_logout)
-        license_layout.addWidget(self.logout_button)
-
-        layout.addWidget(self.license_info)
-
-        # Initialize UI state
-        self.update_profile_ui()
-
-    def update_profile_ui(self):
-        """Update profile UI based on login state"""
-        if self.is_logged_in:
-            self.profile_status_label.setText("Статус: Авторизован")
-            self.login_form.hide()
-            self.license_info.show()
-
-            # Load license info if not loaded
-            if self.current_license is None:
-                self.load_license_info()
-        else:
-            self.profile_status_label.setText("Статус: Не авторизован")
-            self.login_form.show()
-            self.license_info.hide()
-            self.current_license = None
-
-    def handle_login(self):
-        """Handle login button click"""
-        email = self.profile_email_input.text().strip()
-        password = self.profile_password_input.text()
-
-        if not email or not password:
-            QMessageBox.warning(self, "Ошибка", "Введите email и пароль")
-            return
-
-        self.login_button.setEnabled(False)
-        self.login_button.setText("Вход...")
-
-        try:
-            token, user = self.license_client.login(email, password)
-
-            # Save token
-            self.license_storage.save_token(token)
-            self.is_logged_in = True
-
-            # Clear form
-            self.profile_email_input.clear()
-            self.profile_password_input.clear()
-
-            # Update UI
-            self.update_profile_ui()
-
-            QMessageBox.information(self, "Успех", f"Вход выполнен. Добро пожаловать, {user['email']}!")
-
-        except LicenseAPIError as e:
-            error_msg = self._get_error_message(e)
-            QMessageBox.warning(self, "Ошибка входа", error_msg)
-        except Exception as e:
-            QMessageBox.warning(self, "Ошибка", f"Неожиданная ошибка: {str(e)}")
-        finally:
-            self.login_button.setEnabled(True)
-            self.login_button.setText("Войти")
-
-    def handle_logout(self):
-        """Handle logout button click"""
-        reply = QMessageBox.question(
-            self, "Выход",
-            "Вы уверены, что хотите выйти?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
-
-        if reply == QMessageBox.StandardButton.Yes:
-            # Clear token
-            self.license_client.clear_token()
-            self.license_storage.clear_token()
-            self.is_logged_in = False
-            self.current_license = None
-
-            # Invalidate chat cache to avoid stale data
-            try:
-                if hasattr(self, '_chat_cache'):
-                    self._chat_cache.clear()
-            except Exception:
-                pass
-
-            # Update UI
-            self.update_profile_ui()
-
-    def load_license_info(self):
-        """Load and display license information"""
-        try:
-            license_data = self.license_client.get_license()
-            self.current_license = license_data
-
-            # Update UI
-            plan = license_data.get('plan', {})
-            quota = license_data.get('quota', {})
-            device_binding = license_data.get('device_binding', {})
-
-            self.plan_label.setText(f"План: {plan.get('name', 'Неизвестен')}")
-
-            monthly_limit = quota.get('monthly_limit', 0)
-            used = quota.get('used', 0)
-            remaining = quota.get('remaining', 0)
-            reset_at = quota.get('reset_at')
-
-            self.quota_label.setText(f"Квота: {used}/{monthly_limit} (осталось: {remaining})")
-
-            if reset_at:
-                reset_dt = datetime.datetime.fromisoformat(reset_at.replace('Z', '+00:00'))
-                reset_str = reset_dt.strftime('%d.%m.%Y %H:%M')
-                self.reset_label.setText(f"Сброс квоты: {reset_str}")
-            else:
-                self.reset_label.setText("Сброс квоты: Неизвестно")
-
-        except LicenseAPIError as e:
-            error_msg = self._get_error_message(e)
-            QMessageBox.warning(self, "Ошибка загрузки лицензии", error_msg)
-            # If unauthorized, logout
-            if e.status_code == 401:
-                self.handle_logout()
-        except Exception as e:
-            QMessageBox.warning(self, "Ошибка", f"Неожиданная ошибка при загрузке лицензии: {str(e)}")
-
-    def _get_error_message(self, error: LicenseAPIError) -> str:
-        """Get user-friendly error message from LicenseAPIError"""
-        if error.status_code == 401:
-            return "Неверные учетные данные или истекший токен"
-        elif error.status_code == 402:
-            return "Недостаточно средств на счету. Пожалуйста, пополните баланс."
-        elif error.status_code == 409:
-            return "Операция конфликтует с предыдущей. Попробуйте еще раз."
-        elif error.status_code == 422:
-            return f"Ошибка валидации: {error.response_data.get('detail', 'Некорректные данные')}"
-        elif error.status_code == 429:
-            return "Слишком много запросов. Попробуйте позже."
-        elif error.status_code and error.status_code >= 500:
-            return "Сервер временно недоступен. Попробуйте позже."
-        else:
-            return f"Ошибка API: {str(error)}"
 
     def _check_resume_possibility(self) -> Optional[Dict]:
         """Check if there are any resumable broadcast sessions.
@@ -3013,62 +3157,6 @@ class TelegramApp(QMainWindow):
 
         # Резервирование квоты лицензии
         reservation_id = None
-        if self.is_logged_in:
-            try:
-                log_view.append(f"🔐 Резервирование квоты: {planned_messages} сообщений...")
-                reserve_result = self.license_client.reserve(planned_messages)
-                reservation_id = reserve_result['reservation_id']
-                remaining = reserve_result['remaining']
-                log_view.append(f"🔐 Резервирование квоты: OK (резерв #{reservation_id}, осталось: {remaining})")
-            except LicenseAPIError as e:
-                error_msg = self._get_error_message(e)
-                if e.status_code == 401:
-                    # Попытка переавторизации
-                    reply = QMessageBox.question(
-                        self, "Требуется авторизация",
-                        "Сессия лицензии истекла. Выполнить вход заново?",
-                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-                    )
-                    if reply == QMessageBox.StandardButton.Yes:
-                        # Показываем вкладку профиля
-                        self.tabs.setCurrentWidget(self.profile_tab)
-                        QMessageBox.information(self, "Авторизация", "Пожалуйста, войдите в систему на вкладке «Профиль»")
-                    return
-                elif e.status_code == 402:
-                    QMessageBox.warning(self, "Недостаточно квоты", f"{error_msg}\n\nЗапланировано: {planned_messages} сообщений")
-                    return
-                elif e.status_code == 409:
-                    # Повторная попытка с новым correlation_id
-                    try:
-                        log_view.append("🔐 Конфликт резервирования, повторная попытка...")
-                        reserve_result = self.license_client.reserve(planned_messages)
-                        reservation_id = reserve_result['reservation_id']
-                        remaining = reserve_result['remaining']
-                        log_view.append(f"🔐 Резервирование квоты: OK (резерв #{reservation_id}, осталось: {remaining})")
-                    except LicenseAPIError as e2:
-                        error_msg = self._get_error_message(e2)
-                        log_view.append(f"🔐 Резервирование квоты: ОШИБКА - {error_msg}")
-                        QMessageBox.warning(self, "Ошибка резервирования", error_msg)
-                        return
-                else:
-                    log_view.append(f"🔐 Резервирование квоты: ОШИБКА - {error_msg}")
-                    QMessageBox.warning(self, "Ошибка резервирования", error_msg)
-                    return
-            except Exception as e:
-                log_view.append(f"🔐 Резервирование квоты: ОШИБКА - {str(e)}")
-                QMessageBox.warning(self, "Ошибка", f"Неожиданная ошибка при резервировании квоты: {str(e)}")
-                return
-        else:
-            # Проверяем настройку allow_offline
-            cfg = self.load_config()
-            allow_offline = cfg.getboolean('api', 'allow_offline', fallback=False)
-            if not allow_offline:
-                QMessageBox.warning(self, "Требуется авторизация",
-                                  "Для запуска рассылки необходимо войти в систему лицензий.\n\n"
-                                  "Перейдите на вкладку «Профиль» для входа.")
-                self.tabs.setCurrentWidget(self.profile_tab)
-                return
-            log_view.append(f"🔐 Резервирование квоты: Пропущено (оффлайн режим)")
 
         # Проверяем возможность возобновления предыдущей рассылки
         resume_session = self._check_resume_possibility()
@@ -3201,41 +3289,6 @@ class TelegramApp(QMainWindow):
                 pass
 
             # Завершение резерва квоты (commit/rollback)
-            if reservation_id and self.is_logged_in:
-                try:
-                    used = worker.sent_ok if hasattr(worker, 'sent_ok') else 0
-                    if used > 0:
-                        log_view.append(f"📊 Итог: отправлено {used} из {planned_messages}; commit резерва #{reservation_id}...")
-                        self.license_client.commit(reservation_id, used)
-                        log_view.append("📊 Commit резерва: OK")
-                    else:
-                        log_view.append(f"📊 Итог: отправлено 0 из {planned_messages}; rollback резерва #{reservation_id}...")
-                        self.license_client.rollback(reservation_id)
-                        log_view.append("📊 Rollback резерва: OK")
-                except LicenseAPIError as e:
-                    error_msg = self._get_error_message(e)
-                    log_view.append(f"📊 Ошибка завершения резерва: {error_msg}")
-                    # Для commit/rollback пробуем один повтор при 409/422
-                    if e.status_code in (409, 422) and used > 0:
-                        try:
-                            log_view.append("📊 Повторная попытка commit...")
-                            self.license_client.commit(reservation_id, used)
-                            log_view.append("📊 Commit резерва: OK (повтор)")
-                        except LicenseAPIError as e2:
-                            error_msg = self._get_error_message(e2)
-                            log_view.append(f"📊 Commit резерва: ОШИБКА - {error_msg}")
-                    elif e.status_code in (409, 422):
-                        try:
-                            log_view.append("📊 Повторная попытка rollback...")
-                            self.license_client.rollback(reservation_id)
-                            log_view.append("📊 Rollback резерва: OK (повтор)")
-                        except LicenseAPIError as e2:
-                            error_msg = self._get_error_message(e2)
-                            log_view.append(f"📊 Rollback резерва: ОШИБКА - {error_msg}")
-                except Exception as e:
-                    log_view.append(f"📊 Ошибка завершения резерва: {str(e)}")
-
-            # Сохраняем лог
             end_dt = datetime.datetime.now()
             fname = f"Рассылка_{start_dt.strftime('%d.%m.%Y')}_{start_dt.strftime('%H:%M')}-{end_dt.strftime('%H:%M')}.html"
             pathlib.Path('broadcast_logs').mkdir(exist_ok=True)
@@ -3424,374 +3477,9 @@ class TelegramApp(QMainWindow):
     def setup_history_tab(self):
         layout = QVBoxLayout(self.history_tab)
         
-class ChatListWorker(QThread):
-    partial = pyqtSignal(list)
-    success = pyqtSignal(list)
-    error = pyqtSignal(str)
-
-    def __init__(self, account_data: dict, batch_size: int = 200, max_items: int | None = None):
-        super().__init__()
-        self.account_data = account_data
-        self.batch_size = max(10, int(batch_size))
-        self.max_items = max_items if (isinstance(max_items, int) and max_items > 0) else None
-
-    def run(self):
-        cli = None
-        try:
-            session_name = self.account_data['session_name']
-            api_id = self.account_data['api_id']
-            api_hash = self.account_data['api_hash']
-            cli = open_client(session_name, api_id, api_hash)
-            me = cli.get_me()
-
-            # Сбор диалогов с прогрессивной выдачей
-            try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-
-                async def _collect_progressive():
-                    collected = 0
-                    batch_dialogs = []
-                    async for d in cli.get_dialogs():
-                        batch_dialogs.append(d)
-                        collected += 1
-                        if self.max_items and collected >= self.max_items:
-                            break
-                        if len(batch_dialogs) >= self.batch_size:
-                            chats_partial = self._dialogs_to_chats(cli, me.id, batch_dialogs)
-                            if chats_partial:
-                                self.partial.emit(chats_partial)
-                            batch_dialogs = []
-                    # остаток
-                    if batch_dialogs:
-                        chats_partial = self._dialogs_to_chats(cli, me.id, batch_dialogs)
-                        if chats_partial:
-                            self.partial.emit(chats_partial)
-
-                loop.run_until_complete(_collect_progressive())
-            except Exception as e:
-                self.error.emit(f"Ошибка загрузки чатов: {e}")
-                return
-
-            # Завершение: сигнализируем, что прогрузка закончена
-            self.success.emit([])
-        except Exception as e:
-            self.error.emit(str(e))
-        finally:
-            try:
-                if cli is not None:
-                    try:
-                        cli.stop()
-                    except Exception:
-                        try:
-                            cli.disconnect()
-                        except Exception:
-                            pass
-                    if hasattr(cli, "_file_lock"):
-                        try:
-                            cli._file_lock.release()
-                        except Exception:
-                            pass
-            except Exception:
-                pass
-
-    def _dialogs_to_chats(self, cli: Client, my_id: int, dialogs: list) -> list[dict]:
-        chats: list[dict] = []
-        for d in dialogs:
-            ch = getattr(d, 'chat', None)
-            if not ch:
-                continue
-            if ch.type not in (ChatType.GROUP, ChatType.SUPERGROUP, ChatType.CHANNEL):
-                continue
-            username = getattr(ch, 'username', None)
-            address = f"@{username}" if username else str(ch.id)
-            # недавняя активность
-            recent_ts = 0
-            try:
-                msg = getattr(d, 'top_message', None)
-                dt = getattr(msg, 'date', None)
-                if dt:
-                    recent_ts = int(dt.timestamp()) if hasattr(dt, 'timestamp') else 0
-            except Exception:
-                recent_ts = 0
-
-            can_write = None
-            hint = None
-            try:
-                member = cli.get_chat_member(ch.id, my_id)
-                status = getattr(member, 'status', None)
-                if ch.type == ChatType.CHANNEL:
-                    can_write = status in (ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER)
-                    if not can_write:
-                        hint = "Нет прав на публикацию в канале"
-                else:
-                    if status == ChatMemberStatus.BANNED:
-                        can_write = False
-                        hint = "Пользователь забанен в чате"
-                    elif status == ChatMemberStatus.RESTRICTED:
-                        perms = getattr(member, 'permissions', None)
-                        allowed = getattr(perms, 'can_send_messages', True) if perms is not None else False
-                        can_write = bool(allowed)
-                        if not can_write:
-                            hint = "Ограничение на отправку сообщений"
-                    else:
-                        can_write = True
-            except Exception:
-                can_write = None
-                hint = "Права не определены"
-
-            chats.append({
-                'id': ch.id,
-                'title': ch.title or ch.first_name or str(ch.id),
-                'username': username,
-                'type': ch.type.name,
-                'address': address,
-                'can_write': can_write,
-                'hint': hint,
-                'recent_ts': recent_ts,
-            })
-
-        # Сортировка: недавние сверху, затем A→Z
-        chats.sort(key=lambda c: (-int(c.get('recent_ts') or 0), (c['title'] or '').lower()))
-        return chats
-
-
-class PrecheckWorker(QThread):
-    log = pyqtSignal(str)
-    progress = pyqtSignal(int, str)
-    done = pyqtSignal(int, int)
-
-    def __init__(self, accounts_info: list[dict]):
-        super().__init__()
-        self.accounts_info = accounts_info
-        self._stop = False
-
-    def stop(self):
-        self._stop = True
-
-    def run(self):
-        total_ok = 0
-        total_fail = 0
-        try:
-            self.progress.emit(0, "Предпроверка получателей...")
-            # Iterate accounts
-            for acc_idx, acc in enumerate(self.accounts_info):
-                if self._stop:
-                    break
-                name = acc.get('name', 'account')
-                self.log.emit(f"<b>👤 {name}</b>")
-                try:
-                    cli = open_client(acc['session_name'], acc['api_id'], acc['api_hash'])
-                    me = cli.get_me()
-                except Exception as e:
-                    self.log.emit(f"<span style='color:red'>❌ Не удалось открыть сессию: {e}</span>")
-                    total_fail += len(acc.get('recipients', []))
-                    continue
-
-                recs = acc.get('recipients', [])
-                for i, r in enumerate(recs, start=1):
-                    if self._stop:
-                        break
-                    nr = normalize_recipient(r)
-                    target = nr[1:] if nr.startswith('@') else nr
-                    try:
-                        chat = cli.get_chat(target)
-                        # Determine permission
-                        can_write = True
-                        hint = None
-                        try:
-                            member = cli.get_chat_member(chat.id, me.id)
-                            status = getattr(member, 'status', None)
-                            from pyrogram.enums import ChatType as _CT, ChatMemberStatus as _CMS
-                            if chat.type == _CT.CHANNEL:
-                                can_write = status in (_CMS.ADMINISTRATOR, _CMS.OWNER)
-                                if not can_write:
-                                    hint = "нет прав публикации"
-                            else:
-                                if status == _CMS.BANNED:
-                                    can_write = False
-                                    hint = "бан"
-                                elif status == _CMS.RESTRICTED:
-                                    perms = getattr(member, 'permissions', None)
-                                    allowed = getattr(perms, 'can_send_messages', True) if perms is not None else False
-                                    can_write = bool(allowed)
-                                    if not can_write:
-                                        hint = "ограничение на отправку"
-                        except Exception:
-                            # If check failed — unknown, but chat exists
-                            can_write = True
-
-                        if can_write:
-                            total_ok += 1
-                            self.log.emit(f"✅ {nr} — OK")
-                        else:
-                            total_fail += 1
-                            self.log.emit(f"<span style='color:orange'>⚠️ {nr} — нет прав ({hint})</span>")
-                    except Exception as e:
-                        total_fail += 1
-                        self.log.emit(f"<span style='color:red'>❌ {nr} — недоступен ({e})</span>")
-
-                # Disconnect client
-                try:
-                    cli.stop()
-                except Exception:
-                    try:
-                        cli.disconnect()
-                    except Exception:
-                        pass
-
-                self.progress.emit(int(((acc_idx + 1) / max(1, len(self.accounts_info))) * 100), "...")
-
-        except Exception as e:
-            self.log.emit(f"<span style='color:red'>❌ Ошибка предпроверки: {e}</span>")
-        finally:
-            self.done.emit(total_ok, total_fail)
-
-class ChatPickerDialog(QDialog):
-    def __init__(self, parent, account_name: str, chats: list[dict], on_refresh=None):
-        super().__init__(parent)
-        self.setWindowTitle(f"Чаты — {account_name}")
-        self.setModal(True)
-        self._all_chats = chats or []  # list of {id, title, username, type, address, can_write, hint}
-        self._filtered = list(self._all_chats)
-        self._on_refresh = on_refresh
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(14, 14, 14, 14)
-        layout.setSpacing(10)
-
-        # Top: search + refresh
-        top_row = QHBoxLayout()
-        top_row.addWidget(QLabel("Поиск:"))
-        self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Название или @username")
-        top_row.addWidget(self.search_input, 1)
-        self.refresh_btn = QPushButton("Обновить")
-        self.refresh_btn.setProperty("role", "secondary")
-        top_row.addWidget(self.refresh_btn)
-        layout.addLayout(top_row)
-
-        # Loading / status
-        self.progress = QProgressBar()
-        self.progress.setRange(0, 0)
-        self.progress.setVisible(False)
-        layout.addWidget(self.progress)
-        self.status_label = QLabel("")
-        self.status_label.setStyleSheet("color:#c97a7a;")
-        layout.addWidget(self.status_label)
-
-        # List and selection controls
-        controls = QHBoxLayout()
-        select_all_btn = QPushButton("Выбрать все")
-        clear_sel_btn = QPushButton("Снять выделение")
-        select_all_btn.setProperty("role", "secondary")
-        clear_sel_btn.setProperty("role", "secondary")
-        controls.addWidget(select_all_btn)
-        controls.addWidget(clear_sel_btn)
-        controls.addStretch()
-        layout.addLayout(controls)
-
-        self.list = QListWidget()
-        self.list.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
-        layout.addWidget(self.list, 1)
-
-        # Buttons
-        btns = QHBoxLayout()
-        ok_btn = QPushButton("OK")
-        ok_btn.setProperty("role", "primary")
-        cancel_btn = QPushButton("Отмена")
-        cancel_btn.setProperty("role", "secondary")
-        btns.addStretch()
-        btns.addWidget(ok_btn)
-        btns.addWidget(cancel_btn)
-        layout.addLayout(btns)
-
-        # Handlers
-        def populate(items: list[dict]):
-            self.list.clear()
-            for ch in items:
-                disp_username = f" (@{ch['username']})" if ch.get('username') else ""
-                prefix = ""
-                if ch.get('can_write') is False:
-                    prefix = "🚫 "
-                item = QListWidgetItem(f"{prefix}{ch['title']}{disp_username}\n{ch['address']}")
-                item.setData(Qt.ItemDataRole.UserRole, ch['address'])
-                if ch.get('hint'):
-                    item.setToolTip(ch['hint'])
-                self.list.addItem(item)
-
-        self._populate = populate
-        populate(self._filtered)
-
-        # Debounce поиска
-        self._debounce_timer = QTimer(self)
-        self._debounce_timer.setSingleShot(True)
-        self._debounce_timer.setInterval(350)
-
-        def apply_filter_now():
-            t = (self.search_input.text() or "").strip().lower()
-            if not t:
-                self._filtered = list(self._all_chats)
-            else:
-                self._filtered = [c for c in self._all_chats if t in (c['title'] or '').lower() or (c.get('username') or '').lower().startswith(t.lstrip('@')) or t in c['address']]
-            populate(self._filtered)
-
-        self._debounce_timer.timeout.connect(apply_filter_now)
-        def on_search_changed(_):
-            self._debounce_timer.start()
-        self.search_input.textChanged.connect(on_search_changed)
-
-        def select_all():
-            for i in range(self.list.count()):
-                it = self.list.item(i)
-                it.setSelected(True)
-
-        def clear_selection():
-            self.list.clearSelection()
-
-        select_all_btn.clicked.connect(select_all)
-        clear_sel_btn.clicked.connect(clear_selection)
-        ok_btn.clicked.connect(self.accept)
-        cancel_btn.clicked.connect(self.reject)
-        self.refresh_btn.clicked.connect(lambda: self._on_refresh and self._on_refresh(True, self))
-
-        # Счётчик выбранных
-        self.selection_label = QLabel("")
-        layout.addWidget(self.selection_label)
-        def update_count():
-            self.selection_label.setText(f"Выбрано: {len(self.list.selectedItems())}")
-        self.list.itemSelectionChanged.connect(update_count)
-        update_count()
-
-    def selected_addresses(self) -> list[str]:
-        addrs: list[str] = []
-        for it in self.list.selectedItems():
-            addr = it.data(Qt.ItemDataRole.UserRole)
-            if addr:
-                addrs.append(addr)
-        return addrs
-
-    def set_loading(self, is_loading: bool, text: str = ""):
-        try:
-            self.progress.setVisible(is_loading)
-            self.status_label.setText(text or ("Загрузка..." if is_loading else ""))
-        except Exception:
-            pass
-
-    def show_error(self, text: str):
-        try:
-            self.status_label.setText(text or "")
-        except Exception:
-            pass
-
-    def refresh_with(self, chats: list[dict]):
-        self._all_chats = chats or []
-        self._filtered = list(self._all_chats)
-        self._populate(self._filtered)
-
     def setup_about_tab(self):
         layout = QVBoxLayout(self.about_tab)
-        lbl = QLabel('<h3>SLAVA AiG</h3>')
+        lbl = QLabel('<h3>TGFlow</h3>')
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(lbl)
 
@@ -4490,7 +4178,7 @@ def cleanup_temp_files():
 def _dbg(msg: str):
     """Append diagnostic line to ~/Desktop/myslava_debug.log (best-effort)."""
     try:
-        log_path = pathlib.Path.home() / 'Desktop' / 'myslava_debug.log'
+        log_path = pathlib.Path.home() / 'Desktop' / 'tgflow_debug.log'
         log_path.parent.mkdir(parents=True, exist_ok=True)
         with log_path.open('a', encoding='utf-8') as _f:
             ts = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')

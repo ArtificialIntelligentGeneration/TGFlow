@@ -59,7 +59,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='SLAVA',
+    name='TGFlow',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -77,13 +77,13 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name='SLAVA',
+    name='TGFlow',
 )
 
 # Final macOS bundle – creates a proper .app with Contents/Info.plist
 app = BUNDLE(
     coll,
-    name='SLAVA.app',
+    name='TGFlow.app',
     icon=app_icon,
-    bundle_identifier='com.aig.slava',
+    bundle_identifier='com.aig.tgflow',
 ) 

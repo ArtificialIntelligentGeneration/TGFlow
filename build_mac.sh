@@ -8,13 +8,13 @@ set -e
 VARIANT="${1:-clean}"
 
 if [ "$VARIANT" = "personal" ]; then
-  APP_NAME="MySLAVA"
-  DMG_NAME="MySLAVA"
-  SPEC_FILE="myslava.spec"
+  APP_NAME="TGFlow"
+  DMG_NAME="TGFlow_Personal"
+  SPEC_FILE="tgflow.spec"
 else
-  APP_NAME="SLAVA"
-  DMG_NAME="SLAVA"
-  SPEC_FILE="slava_aig.spec"
+  APP_NAME="TGFlow"
+  DMG_NAME="TGFlow"
+  SPEC_FILE="tgflow_dist.spec"
 fi
 
 PY_VERSION="python3"

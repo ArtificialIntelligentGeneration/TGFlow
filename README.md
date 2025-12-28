@@ -1,6 +1,6 @@
-# MySLAVA
+# TGFlow
 
-MySLAVA — это кроссплатформенное настольное приложение на Python (PyQt 6 + Pyrogram) для массовой рассылки сообщений в Telegram с нескольких аккаунтов.
+TGFlow — это кроссплатформенное настольное приложение на Python (PyQt 6 + Pyrogram) для массовой рассылки сообщений в Telegram с нескольких аккаунтов.
 
 ## Возможности
 * Добавление неограниченного числа аккаунтов по API ID / API Hash Telegram.
@@ -36,8 +36,8 @@ python main.py
 Используется PyInstaller. В репозитории есть готовые спек-файлы:
 
 ```bash
-pyinstaller myslava.spec         # macOS
-pyinstaller slava_aig_win.spec   # Windows
+pyinstaller tgflow.spec         # macOS
+pyinstaller tgflow_win.spec   # Windows
 ```
 
 Собранный `.app` / `.exe` будет лежать в директории `dist/`.
@@ -45,8 +45,8 @@ pyinstaller slava_aig_win.spec   # Windows
 ## Где хранятся пользовательские данные
 Все рабочие файлы помещаются в каталог пользователя:
 
-* **macOS:** `~/Library/Application Support/SLAVA`
-* **Windows:** `%APPDATA%\SLAVA`
+* **macOS:** `~/Library/Application Support/TGFlow`
+* **Windows:** `%APPDATA%\TGFlow`
 
 Внутри него создаются:
 

@@ -5,7 +5,7 @@ import appdirs
 import os
 
 # Application identifiers (used both at runtime and for system paths)
-APP_NAME = "SLAVA"
+APP_NAME = "TGFlow"
 APP_AUTHOR = "AiG"
 
 def _resolve_user_data_dir() -> Path:
@@ -38,7 +38,7 @@ def _resolve_user_data_dir() -> Path:
 
     # --- DEBUG: write the chosen path to Desktop for troubleshooting
     try:
-        dbg_log = real_home / 'Desktop' / 'myslava_debug.log'
+        dbg_log = real_home / 'Desktop' / 'tgflow_debug.log'
         dbg_log.parent.mkdir(exist_ok=True)
         with dbg_log.open('a', encoding='utf-8') as f:
             from datetime import datetime
@@ -57,7 +57,7 @@ try:
     USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
 except Exception as e:
     try:
-        dbg_log = Path.home() / 'Desktop' / 'myslava_debug.log'
+        dbg_log = Path.home() / 'Desktop' / 'tgflow_debug.log'
         with dbg_log.open('a', encoding='utf-8') as f:
             from datetime import datetime
             f.write(f"{datetime.now():%Y-%m-%d %H:%M:%S} ! mkdir failed: {e}\n")
