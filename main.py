@@ -57,7 +57,7 @@ nest_asyncio.apply()
 
 # ─── Настройка рабочей директории ────────────────────────────────────────────
 # Все файлы, которые приложение создаёт (auth.log, accounts.json, sessions …)
-# теперь хранятся в каталоге `~/Library/Application Support/SLAVA` (macOS)
+# теперь хранятся в каталоге `~/Library/Application Support/TGFlow` (macOS)
 # или аналогичном для других ОС. Переключаем `cwd`, чтобы существующий код
 # с относительными путями продолжал работать без больших изменений.
 os.chdir(USER_DATA_DIR)
@@ -1453,7 +1453,6 @@ class OptimizedBroadcastWorker(QThread):
                 self.failed_accounts.append(account_name)
                 return False
             elif self.floodwait_auto_wait and wait_seconds <= self.floodwait_max_wait:
-                # Используем адаптивные паузы из AntiSpamManager
                 adapted_wait, explanation = wait_seconds, f"базовая пауза {wait_seconds}s"
 
                 self.log.emit(f"<span style='color:orange'>{account_name}: ⏳ FloodWait {wait_seconds}s – {explanation}...</span>")
@@ -1484,7 +1483,6 @@ class OptimizedBroadcastWorker(QThread):
                 return False
 
         except errors.PeerFlood:
-            # Используем AntiSpamManager для обработки PeerFlood с паузой
             self.sent_fail += 1
             self.error_reasons.append(f"{account_name}: PEER_FLOOD")
             return False
@@ -4059,7 +4057,7 @@ def cleanup_temp_files():
 
 # --- Debug helper ---
 def _dbg(msg: str):
-    """Append diagnostic line to ~/Desktop/myslava_debug.log (best-effort)."""
+    """Append diagnostic line to ~/Desktop/tgflow_debug.log (best-effort)."""
     try:
         log_path = pathlib.Path.home() / 'Desktop' / 'tgflow_debug.log'
         log_path.parent.mkdir(parents=True, exist_ok=True)

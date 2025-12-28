@@ -31,8 +31,8 @@ def _resolve_user_data_dir() -> Path:
         real_home = Path.home().resolve()
 
     # If proposed path lies outside the user's home (for example
-    # '/Library/Application Support/SLAVA'), rewrite it to the standard
-    # '~/Library/Application Support/SLAVA'.
+    # '/Library/Application Support/TGFlow'), rewrite it to the standard
+    # '~/Library/Application Support/TGFlow'.
     if not str(proposed).startswith(str(real_home)):
         proposed = real_home / 'Library' / 'Application Support' / APP_NAME
 
@@ -50,7 +50,7 @@ def _resolve_user_data_dir() -> Path:
     return proposed
 
 
-# Resolve the per-user data directory (~/Library/Application Support/SLAVA on macOS)
+# Resolve the per-user data directory (~/Library/Application Support/TGFlow on macOS)
 USER_DATA_DIR: Path = _resolve_user_data_dir()
 # Try to create the directory; on failure, log to Desktop too
 try:
@@ -70,6 +70,6 @@ def user_file(*parts: str) -> Path:
     """Return path inside the per-user data folder.
 
     Example:
-        user_file('accounts.json') -> ~/Library/Application Support/SLAVA/accounts.json
+        user_file('accounts.json') -> ~/Library/Application Support/TGFlow/accounts.json
     """
     return USER_DATA_DIR.joinpath(*parts) 

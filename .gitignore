@@ -37,7 +37,7 @@ auth.log
 
 # PyInstaller build artifacts (сами *.spec оставляем в репо)
 # (исключаем только временную директорию build/, уже выше) 
-# SLAVA ignore (assistant)
+# TGFlow ignore (assistant)
 __pycache__/
 .venv*/
 venv/
@@ -45,8 +45,5 @@ venv/
 .env.*
 sessions/
 broadcast_logs/
-server/keys/
-server/.env
-server/.secrets
 accounts.json
 *.log
