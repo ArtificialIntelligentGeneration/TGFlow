@@ -47,3 +47,19 @@ sessions/
 broadcast_logs/
 accounts.json
 *.log
+
+# Sensitive / Local Data
+accounts_credentials.txt
+invites.json
+auth_pending.json
+test_users.txt
+mini_debug.jsonl
+unknown_errors.txt
+
+# Icon generation artifacts
+TGFlow.iconset/
+TGFlow_new.iconset/
+UserIcon.iconset/
+
+# Misc
+ГОТОВО. НА ОТПРАВКУ/

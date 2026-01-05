@@ -71,75 +71,12 @@ logging.basicConfig(
 )
 
 # -------- Markdown converter ---------
-# Преобразует упрощённый HTML (b/i/a/br,p) в Markdown для Telegram.
-# • <b>text</b> → *text*
-# • <i>text</i> → _text_
-# • <a href="url">txt</a> → [txt](url)
-# • <br>, </p> → \n
-# Экранирует спец-символы Markdown вне вставленной разметки.
+# Преобразует упрощённый HTML (b/i/a/br,p) в Telegram HTML.
+# Реализация вынесена в text_utils.py
+# -------------------------------------
 
-# Для Markdown достаточно экранировать 6 символов: _ * ` [ ] ( ) и сам символ обратного слеша.
-MD_SPECIALS = ['\\', '_', '*', '`', '[', ']', '(', ')']
+from text_utils import html_to_telegram
 
-def _escape_md(text: str) -> str:
-    import re
-    # Формируем регэксп «любой из спец-символов»
-    specials_re = re.escape(''.join(MD_SPECIALS))
-    pattern = fr'([{specials_re}])'
-    return re.sub(pattern, r'\\\1', text)
-
-
-def _preprocess_html(raw: str) -> str:
-    """Грубая замена <span style="..."> на семантические теги перед парсингом."""
-    import re
-    # span c жирным
-    raw = re.sub(r"<span[^>]*font-weight:[^>]*>(.*?)</span>", r"<b>\1</b>", raw, flags=re.S | re.I)
-    # span c курсивом
-    raw = re.sub(r"<span[^>]*font-style\s*:\s*italic[^>]*>(.*?)</span>", r"<i>\1</i>", raw, flags=re.S | re.I)
-    return raw
-
-
-def html_to_md(html: str) -> str:
-    """Конвертирует HTML (QTextEdit) в Markdown (legacy) для Telegram."""
-    html = _preprocess_html(html)
-    soup = BeautifulSoup(html, 'html.parser')
-
-    def node2md(node) -> str:
-        from bs4.element import NavigableString, Tag
-        if isinstance(node, NavigableString):
-            return _escape_md(str(node))
-
-        if not isinstance(node, Tag):
-            return ''
-
-        name = node.name.lower()
-
-        if name in ('b', 'strong'):
-            inner = ''.join(node2md(c) for c in node.children)
-            return f"*{inner}*"
-        if name in ('i', 'em'):
-            inner = ''.join(node2md(c) for c in node.children)
-            return f"_{inner}_"
-        if name == 'a':
-            href = node.get('href', '')
-            body = ''.join(node2md(c) for c in node.children) or href
-            return f"[{body}]({href})"
-        if name in ('br',):
-            return '\n'
-        if name in ('p',):
-            # абзац = текст + пустая строка
-            inner = ''.join(node2md(c) for c in node.children)
-            return inner + '\n\n'
-
-        # контейнеры span/div и пр. – рекурсивно без собственных тегов
-        return ''.join(node2md(c) for c in node.children)
-
-    md = ''.join(node2md(child) for child in soup.body or soup.children)
-
-    import re
-    # >2 переводов подряд – схлапываем до 2
-    md = re.sub(r'\n{3,}', '\n\n', md).strip()
-    return md
 
 # ─── Определение наличия ссылки в тексте ──────────────────────────────────────
 # Используется для автоотключения превью ссылок при отправке сообщений.
@@ -628,7 +565,7 @@ class OptimizedBroadcastWorker(QThread):
         super().__init__()
         self.accounts_info = accounts_info
         # Конвертируем HTML из скрипта сразу в Markdown V2
-        self.message = html_to_md(message)
+        self.message = html_to_telegram(message)
         self.media_files = media_files or []  # Список путей к медиа файлам
         self.inter_wave_delay_min = inter_wave_delay_min        # Минимальная задержка между волнами
         self.inter_wave_delay_max = inter_wave_delay_max        # Максимальная задержка между волнами
@@ -714,7 +651,7 @@ class OptimizedBroadcastWorker(QThread):
             for wave_idx in range(max_messages):
                 if self._stop_requested:
                     break
-
+                
                 # Обновляем прогресс для каждой волны
                 progress_value = 10 + int((wave_idx / max_messages) * 80)
                 self.progress.emit(progress_value, f"Волна {wave_idx + 1}/{max_messages}")
@@ -872,7 +809,7 @@ class OptimizedBroadcastWorker(QThread):
                     # Гарантированно удаляем из активных клиентов
                     if account_name in self.active_clients:
                         del self.active_clients[account_name]
-
+                    
                     # Дополнительная очистка памяти
                     if client:
                         try:
@@ -911,7 +848,7 @@ class OptimizedBroadcastWorker(QThread):
 
             recipient = acc["recipients"][wave_idx]
             success = self._send_single_message(name, acc, recipient, wave_idx + 1)
-
+            
             # Клиента не закрываем до конца рассылки, чтобы не терять файловый lock
 
             # Задержка между аккаунтами (кроме последнего) - фиксированная 3с
@@ -1043,7 +980,7 @@ class OptimizedBroadcastWorker(QThread):
                                     chat_id=normalized_recipient,
                                     document=media_file,
                                     caption=caption_to_send,
-                                    parse_mode=ParseMode.DEFAULT,
+                                    parse_mode=ParseMode.HTML,
                                     schedule_date=schedule_date
                                 )
                                 schedule_status = "запланирован" if schedule_date else "отправлен"
@@ -1062,13 +999,13 @@ class OptimizedBroadcastWorker(QThread):
                                     client.send_document(
                                         chat_id=normalized_recipient,
                                         document=media_file,
-                                        caption=caption_to_send,
-                                        parse_mode=ParseMode.DEFAULT
-                                    )
-                                    self.log.emit(f"{account_name}: 📎 GIF {os.path.basename(media_file)} {'с текстом' if caption else ''} отправлен немедленно")
-                                    self.schedule_corrected += 1
-                                else:
-                                    raise schedule_error
+                                    caption=caption_to_send,
+                                        parse_mode=ParseMode.HTML
+                                )
+                                self.log.emit(f"{account_name}: 📎 GIF {os.path.basename(media_file)} {'с текстом' if caption else ''} отправлен немедленно")
+                                self.schedule_corrected += 1
+                            else:
+                                raise schedule_error
                         elif mime_type and mime_type.startswith('video/'):
                             # Отправляем как видео
                             try:
@@ -1076,7 +1013,7 @@ class OptimizedBroadcastWorker(QThread):
                                     chat_id=normalized_recipient,
                                     video=media_file,
                                     caption=caption_to_send,
-                                    parse_mode=ParseMode.DEFAULT,
+                                    parse_mode=ParseMode.HTML,
                                     schedule_date=schedule_date
                                 )
                                 schedule_status = "запланировано" if schedule_date else "отправлено"
@@ -1095,7 +1032,7 @@ class OptimizedBroadcastWorker(QThread):
                                         chat_id=normalized_recipient,
                                         video=media_file,
                                         caption=caption_to_send,
-                                        parse_mode=ParseMode.DEFAULT
+                                        parse_mode=ParseMode.HTML
                                     )
                                     self.log.emit(f"{account_name}: 🎬 Видео {os.path.basename(media_file)} {'с текстом' if caption else ''} отправлено немедленно")
                                     self.schedule_corrected += 1
@@ -1108,7 +1045,7 @@ class OptimizedBroadcastWorker(QThread):
                                     chat_id=normalized_recipient,
                                     audio=media_file,
                                     caption=caption_to_send,
-                                    parse_mode=ParseMode.DEFAULT,
+                                    parse_mode=ParseMode.HTML,
                                     schedule_date=schedule_date
                                 )
                                 schedule_status = "запланировано" if schedule_date else "отправлено"
@@ -1127,7 +1064,7 @@ class OptimizedBroadcastWorker(QThread):
                                         chat_id=normalized_recipient,
                                         audio=media_file,
                                         caption=caption_to_send,
-                                        parse_mode=ParseMode.DEFAULT
+                                        parse_mode=ParseMode.HTML
                                     )
                                     self.log.emit(f"{account_name}: 🎵 Аудио {os.path.basename(media_file)} {'с текстом' if caption else ''} отправлено немедленно")
                                     self.schedule_corrected += 1
@@ -1145,7 +1082,7 @@ class OptimizedBroadcastWorker(QThread):
                                         chat_id=normalized_recipient,
                                         document=media_file,
                                         caption=caption_to_send,
-                                        parse_mode=ParseMode.DEFAULT,
+                                        parse_mode=ParseMode.HTML,
                                         schedule_date=schedule_date
                                     )
                                     schedule_status = "запланирован" if schedule_date else "отправлен"
@@ -1164,7 +1101,7 @@ class OptimizedBroadcastWorker(QThread):
                                             chat_id=normalized_recipient,
                                             document=media_file,
                                             caption=caption_to_send,
-                                            parse_mode=ParseMode.DEFAULT
+                                            parse_mode=ParseMode.HTML
                                         )
                                         self.log.emit(f"{account_name}: 📎 Документ {os.path.basename(media_file)} {'с текстом' if caption else ''} отправлен немедленно")
                                         self.schedule_corrected += 1
@@ -1178,7 +1115,7 @@ class OptimizedBroadcastWorker(QThread):
                                         chat_id=normalized_recipient,
                                         document=media_file,
                                         caption=caption_to_send,
-                                        parse_mode=ParseMode.DEFAULT,
+                                        parse_mode=ParseMode.HTML,
                                         schedule_date=schedule_date
                                     )
                                     schedule_status = "запланирован" if schedule_date else "отправлен"
@@ -1198,7 +1135,7 @@ class OptimizedBroadcastWorker(QThread):
                                             chat_id=normalized_recipient,
                                             document=media_file,
                                             caption=caption_to_send,
-                                            parse_mode=ParseMode.DEFAULT
+                                            parse_mode=ParseMode.HTML
                                         )
                                         self.log.emit(f"{account_name}: 📎 Документ {os.path.basename(media_file)} {'с текстом' if caption else ''} отправлен немедленно")
                                         self.schedule_corrected += 1
@@ -1209,7 +1146,7 @@ class OptimizedBroadcastWorker(QThread):
                                                 chat_id=normalized_recipient,
                                                 document=media_file,
                                                 caption=caption_to_send,
-                                                parse_mode=ParseMode.DEFAULT,
+                                                parse_mode=ParseMode.HTML,
                                                 schedule_date=schedule_date
                                             )
                                             schedule_status = "запланирован" if schedule_date else "отправлен"
@@ -1226,7 +1163,7 @@ class OptimizedBroadcastWorker(QThread):
                                         chat_id=normalized_recipient,
                                             photo=photo_fp,
                                         caption=caption_to_send,
-                                        parse_mode=ParseMode.DEFAULT,
+                                        parse_mode=ParseMode.HTML,
                                         schedule_date=schedule_date
                                     )
                                     schedule_status = "запланировано" if schedule_date else "отправлено"
@@ -1247,7 +1184,7 @@ class OptimizedBroadcastWorker(QThread):
                                             chat_id=normalized_recipient,
                                                 photo=photo_fp,
                                             caption=caption_to_send,
-                                            parse_mode=ParseMode.DEFAULT
+                                            parse_mode=ParseMode.HTML
                                         )
                                         self.log.emit(f"{account_name}: 📎 Фото {os.path.basename(media_file)} {'с текстом' if caption else ''} отправлено немедленно")
                                         self.schedule_corrected += 1
@@ -1258,7 +1195,7 @@ class OptimizedBroadcastWorker(QThread):
                                                 chat_id=normalized_recipient,
                                                 document=media_file,
                                                 caption=caption_to_send,
-                                                parse_mode=ParseMode.DEFAULT,
+                                                parse_mode=ParseMode.HTML,
                                                 schedule_date=schedule_date
                                             )
                                             schedule_status = "запланирован" if schedule_date else "отправлен"
@@ -1274,7 +1211,7 @@ class OptimizedBroadcastWorker(QThread):
                                     chat_id=normalized_recipient,
                                     document=media_file,
                                     caption=caption_to_send,
-                                    parse_mode=ParseMode.DEFAULT,
+                                    parse_mode=ParseMode.HTML,
                                     schedule_date=schedule_date
                                 )
                                 schedule_status = "запланирован" if schedule_date else "отправлен"
@@ -1294,7 +1231,7 @@ class OptimizedBroadcastWorker(QThread):
                                         chat_id=normalized_recipient,
                                         document=media_file,
                                         caption=caption_to_send,
-                                        parse_mode=ParseMode.DEFAULT
+                                        parse_mode=ParseMode.HTML
                                     )
                                     self.log.emit(f"{account_name}: 📎 Документ {os.path.basename(media_file)} {'с текстом' if caption else ''} отправлен немедленно")
                                     self.schedule_corrected += 1
@@ -1311,7 +1248,7 @@ class OptimizedBroadcastWorker(QThread):
                                 client.send_message(
                                     normalized_recipient,
                                     self.message,
-                                    parse_mode=ParseMode.DEFAULT,
+                                    parse_mode=ParseMode.HTML,
                                     disable_web_page_preview=contains_url(self.message),
                                     schedule_date=schedule_date
                                 )
@@ -1330,7 +1267,7 @@ class OptimizedBroadcastWorker(QThread):
                                     client.send_message(
                                         normalized_recipient,
                                         self.message,
-                                        parse_mode=ParseMode.DEFAULT,
+                                        parse_mode=ParseMode.HTML,
                                         disable_web_page_preview=contains_url(self.message)
                                     )
                                     self.log.emit(f"{account_name}: 💬 Текст отправлен немедленно отдельно (подпись слишком длинная)")
@@ -1355,7 +1292,7 @@ class OptimizedBroadcastWorker(QThread):
                         client.send_message(
                             normalized_recipient,
                             self.message,
-                            parse_mode=ParseMode.DEFAULT,
+                            parse_mode=ParseMode.HTML,
                             disable_web_page_preview=contains_url(self.message),
                             schedule_date=schedule_date
                         )
@@ -1375,7 +1312,7 @@ class OptimizedBroadcastWorker(QThread):
                             client.send_message(
                                 normalized_recipient,
                                 self.message,
-                                parse_mode=ParseMode.DEFAULT,
+                                parse_mode=ParseMode.HTML,
                                 disable_web_page_preview=contains_url(self.message)
                             )
                             self.log.emit(f"{account_name}: 💬 Текстовое сообщение отправлено немедленно (медиа файлы недоступны)")
@@ -1388,7 +1325,7 @@ class OptimizedBroadcastWorker(QThread):
                     client.send_message(
                         normalized_recipient,
                         self.message,
-                        parse_mode=ParseMode.DEFAULT,
+                        parse_mode=ParseMode.HTML,
                         disable_web_page_preview=contains_url(self.message),
                         schedule_date=schedule_date
                     )
@@ -1408,7 +1345,7 @@ class OptimizedBroadcastWorker(QThread):
                         client.send_message(
                             normalized_recipient,
                             self.message,
-                            parse_mode=ParseMode.DEFAULT,
+                            parse_mode=ParseMode.HTML,
                             disable_web_page_preview=contains_url(self.message)
                         )
                         self.log.emit(f"{account_name}: 💬 Текстовое сообщение отправлено немедленно")
@@ -1761,96 +1698,42 @@ class ChatListWorker(QThread):
         return chats
 
 
-class PrecheckWorker(QThread):
-    log = pyqtSignal(str)
-    progress = pyqtSignal(int, str)
-    done = pyqtSignal(int, int)
-
-    def __init__(self, accounts_info: list[dict]):
-        super().__init__()
-        self.accounts_info = accounts_info
-        self._stop = False
-
-    def stop(self):
-        self._stop = True
-
-    def run(self):
-        total_ok = 0
-        total_fail = 0
-        try:
-            self.progress.emit(0, "Предпроверка получателей...")
-            # Iterate accounts
-            for acc_idx, acc in enumerate(self.accounts_info):
-                if self._stop:
-                    break
-                name = acc.get('name', 'account')
-                self.log.emit(f"<b>👤 {name}</b>")
-                try:
-                    cli = open_client(acc['session_name'], acc['api_id'], acc['api_hash'])
-                    me = cli.get_me()
-                except Exception as e:
-                    self.log.emit(f"<span style='color:red'>❌ Не удалось открыть сессию: {e}</span>")
-                    total_fail += len(acc.get('recipients', []))
-                    continue
-
-                recs = acc.get('recipients', [])
-                for i, r in enumerate(recs, start=1):
-                    if self._stop:
-                        break
-                    nr = normalize_recipient(r)
-                    target = nr[1:] if nr.startswith('@') else nr
-                    try:
-                        chat = cli.get_chat(target)
-                        # Determine permission
-                        can_write = True
-                        hint = None
-                        try:
-                            member = cli.get_chat_member(chat.id, me.id)
-                            status = getattr(member, 'status', None)
-                            from pyrogram.enums import ChatType as _CT, ChatMemberStatus as _CMS
-                            if chat.type == _CT.CHANNEL:
-                                can_write = status in (_CMS.ADMINISTRATOR, _CMS.OWNER)
-                                if not can_write:
-                                    hint = "нет прав публикации"
-                            else:
-                                if status == _CMS.BANNED:
-                                    can_write = False
-                                    hint = "бан"
-                                elif status == _CMS.RESTRICTED:
-                                    perms = getattr(member, 'permissions', None)
-                                    allowed = getattr(perms, 'can_send_messages', True) if perms is not None else False
-                                    can_write = bool(allowed)
-                                    if not can_write:
-                                        hint = "ограничение на отправку"
-                        except Exception:
-                            # If check failed — unknown, but chat exists
-                            can_write = True
-
-                        if can_write:
-                            total_ok += 1
-                            self.log.emit(f"✅ {nr} — OK")
-                        else:
-                            total_fail += 1
-                            self.log.emit(f"<span style='color:orange'>⚠️ {nr} — нет прав ({hint})</span>")
-                    except Exception as e:
-                        total_fail += 1
-                        self.log.emit(f"<span style='color:red'>❌ {nr} — недоступен ({e})</span>")
-
-                # Disconnect client
-                try:
-                    cli.stop()
-                except Exception:
-                    try:
-                        cli.disconnect()
-                    except Exception:
-                        pass
-
-                self.progress.emit(int(((acc_idx + 1) / max(1, len(self.accounts_info))) * 100), "...")
-
-        except Exception as e:
-            self.log.emit(f"<span style='color:red'>❌ Ошибка предпроверки: {e}</span>")
-        finally:
-            self.done.emit(total_ok, total_fail)
+class LeadsEditorDialog(QDialog):
+    def __init__(self, parent, text: str):
+        super().__init__(parent)
+        self.setWindowTitle("Редактирование лидов")
+        self.resize(500, 600)
+        self.layout = QVBoxLayout(self)
+        
+        self.editor = QTextEdit()
+        self.editor.setPlainText(text)
+        self.layout.addWidget(self.editor)
+        
+        self.info_label = QLabel("По одному получателю на строку")
+        self.layout.addWidget(self.info_label)
+        
+        btn_layout = QHBoxLayout()
+        save_btn = QPushButton("Сохранить")
+        save_btn.clicked.connect(self.accept)
+        save_btn.setProperty("role", "primary")
+        
+        cancel_btn = QPushButton("Отмена")
+        cancel_btn.clicked.connect(self.reject)
+        
+        btn_layout.addStretch()
+        btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(save_btn)
+        self.layout.addLayout(btn_layout)
+        
+        self.editor.textChanged.connect(self.update_count)
+        self.update_count()
+        
+    def update_count(self):
+        lines = [l for l in self.editor.toPlainText().split('\n') if l.strip()]
+        self.info_label.setText(f"Лидов: {len(lines)}")
+        
+    def get_text(self):
+        return self.editor.toPlainText()
 
 class ChatPickerDialog(QDialog):
     def __init__(self, parent, account_name: str, chats: list[dict], on_refresh=None):
@@ -2018,23 +1901,26 @@ class TelegramApp(QMainWindow):
         
         # Создаем вкладки
         self.tabs = QTabWidget()
+        self.tabs.setMovable(True)  # Разрешаем перемещать вкладки drag-and-drop
         main_layout.addWidget(self.tabs)
         
-        # 1. Вкладка «Рассылка» (пока заглушка)
+        # 1. Вкладка «Рассылка»
         self.broadcast_tab = QWidget()
         self.tabs.addTab(self.broadcast_tab, "Рассылка")
         
-        # 2. «Аккаунты»
-        self.accounts_tab = QWidget()
-        self.tabs.addTab(self.accounts_tab, "Аккаунты")
+        # 2. «Чат-рассылка»
+        self.chats_broadcast_tab = QWidget()
+        self.tabs.addTab(self.chats_broadcast_tab, "Чат-рассылка")
 
-
-
-        # 4. «Скрипты» (заглушка)
+        # 3. «Скрипты»
         self.scripts_tab = QWidget()
         self.tabs.addTab(self.scripts_tab, "Скрипты")
 
-        # 5. «История» (заглушка)
+        # 4. «Аккаунты»
+        self.accounts_tab = QWidget()
+        self.tabs.addTab(self.accounts_tab, "Аккаунты")
+
+        # 5. «История»
         self.history_tab = QWidget()
         self.tabs.addTab(self.history_tab, "История")
         
@@ -2045,10 +1931,13 @@ class TelegramApp(QMainWindow):
         # Настройка вкладок
         self.setup_broadcast_tab()
         self.setup_accounts_tab()
-
+        self.setup_chats_broadcast_tab()
         self.setup_scripts_tab()
         self.setup_history_tab()
         self.setup_about_tab()
+        
+        # Подключаем обработчик переключения вкладок (один раз при инициализации)
+        self.tabs.currentChanged.connect(self._handle_tab_changed)
         
         # Загружаем сохраненные аккаунты
         self.load_accounts()
@@ -2097,6 +1986,17 @@ class TelegramApp(QMainWindow):
                 continue
         
         print("Предупреждение: иконка не найдена, приложение будет без иконки")
+
+    def _handle_tab_changed(self, index: int):
+        """Обработчик переключения вкладок.
+        
+        Автоматически обновляет список скриптов при переходе на вкладку «Рассылка».
+        """
+        try:
+            if self.tabs.widget(index) is self.broadcast_tab:
+                self.reload_scripts_list()
+        except Exception:
+            pass
 
     def setup_accounts_tab(self):
         layout = QVBoxLayout(self.accounts_tab)
@@ -2330,52 +2230,10 @@ class TelegramApp(QMainWindow):
         precheck_bar = QHBoxLayout()
         self.dry_run_checkbox = QCheckBox("Пробный запуск (без отправки)")
         self.dry_run_checkbox.setToolTip("Ничего не отправляется — только логируется")
-        self.precheck_button = QPushButton("Предпроверка получателей")
-        self.precheck_button.setProperty("role", "secondary")
         precheck_bar.addWidget(self.dry_run_checkbox)
-        precheck_bar.addWidget(self.precheck_button)
         precheck_bar.addStretch()
         content_layout.addLayout(precheck_bar)
 
-        def run_precheck():
-            # Собираем accounts_info как перед отправкой
-            accounts_info = []
-            for box, txt, acc in self.broadcast_items:
-                if box.isChecked():
-                    def norm(r:str):
-                        return r
-                    recs = [l.strip() for l in txt.toPlainText().split('\n') if l.strip()]
-                    if not recs:
-                        continue
-                    session_name = acc.get('session_name') or str(user_file('sessions', acc['phone'].replace('+', '').replace(' ', '')))
-                    accounts_info.append({
-                        "session_name": session_name,
-                        "api_id": acc['api_id'],
-                        "api_hash": acc['api_hash'],
-                        "name": acc['name'],
-                        "recipients": recs
-                    })
-            if not accounts_info:
-                QMessageBox.information(self, "Предпроверка", "Нет выбранных аккаунтов/получателей")
-                return
-
-            dlg = QDialog(self)
-            dlg.setWindowTitle("Предпроверка получателей")
-            dlg.resize(600, 420)
-            lay = QVBoxLayout(dlg)
-            view = QTextEdit(); view.setReadOnly(True)
-            lay.addWidget(view)
-            bar = QHBoxLayout(); bar.addStretch(); close_btn = QPushButton("Закрыть"); close_btn.setProperty("role", "secondary"); bar.addWidget(close_btn); lay.addLayout(bar)
-            close_btn.clicked.connect(dlg.reject)
-
-            worker = PrecheckWorker(accounts_info)
-            worker.log.connect(lambda line: view.append(line))
-            worker.progress.connect(lambda v, t: None)
-            worker.done.connect(lambda ok, fail: view.append(f"\n<b>Итог:</b> OK: {ok} | Нельзя: {fail}"))
-            worker.start()
-            dlg.exec()
-
-        self.precheck_button.clicked.connect(run_precheck)
 
         # Кнопка раскрытия расширенных настроек
         advanced_toggle = QToolButton()
@@ -2479,8 +2337,9 @@ class TelegramApp(QMainWindow):
         start_time_layout.addWidget(QLabel("Время начала:"))
         self.start_time_input = QTimeEdit()
         self.start_time_input.setDisplayFormat("HH:mm")
-        self.start_time_input.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+        # Buttons enabled by default, line removed
         self.start_time_input.setFixedWidth(80)
+        self.start_time_input.setStyleSheet("background-color: #3A3A3A; color: #E0E0E0; border: 1px solid #555; border-radius: 4px; selection-background-color: #555;")
         start_time_layout.addWidget(self.start_time_input)
         scheduled_params_layout.addLayout(start_time_layout)
 
@@ -2492,6 +2351,7 @@ class TelegramApp(QMainWindow):
         self.start_date_input.setCalendarPopup(True)
         self.start_date_input.setDate(QDate.currentDate())
         self.start_date_input.setFixedWidth(120)
+        self.start_date_input.setStyleSheet("background-color: #3A3A3A; color: #E0E0E0; border: 1px solid #555; border-radius: 4px; selection-background-color: #555;")
         start_date_layout.addWidget(self.start_date_input)
         scheduled_params_layout.addLayout(start_date_layout)
 
@@ -2629,16 +2489,6 @@ class TelegramApp(QMainWindow):
         # Инициализация состояния полей отложенной отправки
         self.toggle_scheduled_inputs()
 
-        # Автообновление списка скриптов при переходе на вкладку «Рассылка»
-        def handle_tab_changed(index: int):
-            try:
-                if self.tabs.widget(index) is self.broadcast_tab:
-                    self.reload_scripts_list()
-            except Exception:
-                pass
-
-        self.tabs.currentChanged.connect(handle_tab_changed)
-
     def toggle_scheduled_inputs(self):
         """Включает/отключает поля ввода параметров отложенной отправки."""
         enabled = self.enable_scheduled_checkbox.isChecked()
@@ -2650,7 +2500,7 @@ class TelegramApp(QMainWindow):
     def reload_scripts_list(self):
         current = self.script_combo.currentText()
         self.script_combo.clear()
-        self.script_combo.addItems(list_scripts())
+        self.script_combo.addItems(list_scripts(category="leads"))
         idx = self.script_combo.findText(current)
         if idx >= 0:
             self.script_combo.setCurrentIndex(idx)
@@ -2662,17 +2512,26 @@ class TelegramApp(QMainWindow):
             self.script_preview.clear()
             return
         try:
-            txt = load_script(name)
+            txt = load_script(name, category="leads")
         except FileNotFoundError:
             txt = ""
         self.script_preview.setHtml(txt)
 
     def load_broadcast_accounts(self):
-        # Очищаем
-        while self.broadcast_accounts_layout.count():
-            w = self.broadcast_accounts_layout.takeAt(0).widget()
-            if w:
-                w.deleteLater()
+        # Helper to clear layout recursively
+        def clear_layout(layout):
+            if layout is not None:
+                while layout.count():
+                    item = layout.takeAt(0)
+                    widget = item.widget()
+                    if widget is not None:
+                        widget.deleteLater()
+                    else:
+                        sub_layout = item.layout()
+                        if sub_layout:
+                            clear_layout(sub_layout)
+
+        clear_layout(self.broadcast_accounts_layout)
         self.broadcast_items = []
         try:
             if os.path.exists('accounts.json'):
@@ -2682,9 +2541,11 @@ class TelegramApp(QMainWindow):
                 accounts = []
         except Exception:
             accounts = []
+
         # Верхняя панель: выбрать все / снять все
         if accounts:
             select_bar = QHBoxLayout()
+            select_bar.setContentsMargins(0, 0, 0, 0)
             select_all_checkbox = QCheckBox("Выбрать все")
             select_all_checkbox.setProperty("role", "primary")
             def on_select_all(checked: bool):
@@ -2696,28 +2557,33 @@ class TelegramApp(QMainWindow):
             # Кнопка очистки всех полей лидов
             clear_all_btn = QPushButton("Очистить")
             clear_all_btn.setProperty("role", "danger")
+            clear_all_btn.setFixedSize(80, 24)
+            
             def _clear_all_leads():
                 try:
                     for _b, _txt, _acc in getattr(self, 'broadcast_items', []):
                         try:
-                            if _txt is not None and not sip.isdeleted(_txt):
+                            if _txt is not None:
                                 _txt.clear()
                         except Exception:
                             pass
                 except Exception:
                     pass
+            
             clear_all_btn.clicked.connect(_clear_all_leads)
             select_bar.addWidget(clear_all_btn)
             select_bar.addStretch()
             self.broadcast_accounts_layout.addLayout(select_bar)
+            
+            # Spacer
+            self.broadcast_accounts_layout.addSpacing(10)
 
         for acc in accounts:
-            # Горизонтальная строка: чекбокс слева, кнопка лидов, а справа — виджет лидов
             row = QHBoxLayout()
             row.setContentsMargins(0,0,0,0)
-            row.setSpacing(8)
+            row.setSpacing(10)
 
-            # Безопасный и компактный вывод имени в строке аккаунта
+            # Безопасный и компактный вывод имени
             _name_full = acc.get('name', '')
             _name_disp = _name_full
             try:
@@ -2725,6 +2591,7 @@ class TelegramApp(QMainWindow):
                     _name_disp = _name_disp[:31] + '…'
             except Exception:
                 pass
+            
             box = QCheckBox(f"{_name_disp} ({acc['phone']})")
             try:
                 box.setToolTip(f"{_name_full} ({acc['phone']})")
@@ -2732,173 +2599,44 @@ class TelegramApp(QMainWindow):
                 pass
             row.addWidget(box)
 
-            toggle_btn = QToolButton()
-            toggle_btn.setText("Лиды")
-            toggle_btn.setCheckable(True)
-            toggle_btn.setChecked(False)
-            toggle_btn.setProperty("role", "danger")  # Сделаем заметней цветом
-            row.addWidget(toggle_btn)
+            # Кнопка редактирования лидов
+            edit_leads_btn = QPushButton("Лиды")
+            edit_leads_btn.setProperty("role", "secondary")
+            edit_leads_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            edit_leads_btn.setFixedSize(60, 24)
+            row.addWidget(edit_leads_btn)
 
-            # Кнопка Чаты (ChatPicker)
-            chat_btn = QPushButton("Чаты")
-            chat_btn.setProperty("role", "secondary")
-            row.addWidget(chat_btn)
-
-            # Растяжка между кнопками и полем лидов
+            # Статус (количество)
+            count_label = QLabel("0 шт.")
+            count_label.setStyleSheet("color: #888; margin-left: 5px;")
+            row.addWidget(count_label)
+            
+            # Скрытое поле для хранения текста
+            txt = QTextEdit(self.broadcast_accounts_area)
+            txt.setVisible(False)
+            
+            # Растяжка
             row.addStretch()
 
-            # Виджет лидов справа, изначально спрятан, с горизонтальным скроллом
-            leads_container = QWidget()
-            lc_layout = QVBoxLayout(leads_container)
-            lc_layout.setContentsMargins(0,0,0,0)
-            txt = QTextEdit()
-            txt.setPlaceholderText("Лиды: по одному на строку")
-            txt.setReadOnly(True)
-            txt.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
-            txt.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-            txt.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-            lc_layout.addWidget(txt)
-            leads_container.setVisible(False)
-            leads_container.setMinimumWidth(260)
-            leads_container.setMaximumWidth(420)
-
-            row.addWidget(leads_container, 0)
             self.broadcast_accounts_layout.addLayout(row)
 
-            def on_toggle(checked, w=leads_container):
-                try:
-                    if w is None or sip.isdeleted(w):
-                        return
-                    w.setVisible(checked)
-                except Exception:
-                    pass
-            toggle_btn.toggled.connect(on_toggle)
+            # Fix closure: pass current txt and count_label as default args
+            def update_count_label(_txt=txt, _lbl=count_label):
+                lines = [l for l in _txt.toPlainText().split('\n') if l.strip()]
+                _lbl.setText(f"{len(lines)} шт.")
 
-            # Обработчик кнопки "Чаты"
-            def on_chat_click(_=None, _acc=acc, _txt=txt, _name=_name_full):
-                try:
-                    # Кэш чатов в рамках сессии приложения
-                    if not hasattr(self, '_chat_cache'):
-                        self._chat_cache = {}
+            # Connect textChanged to update label
+            txt.textChanged.connect(update_count_label)
 
-                    session_name = _acc.get('session_name') or str(user_file('sessions', _acc['phone'].replace('+', '').replace(' ', '')))
-
-                    # Берём чаты из кэша или запрашиваем
-                    chats = self._chat_cache.get(session_name)
-                    if chats is None:
-                        # Открываем клиента без запуска отправки
-                        cli = open_client(session_name, _acc['api_id'], _acc['api_hash'])
-                        # Синхронная обёртка над async генератором get_dialogs
-                        dialogs = []
-                        try:
-                            # Используем внутренний метод для вызова async корутины в already running loop
-                            loop = asyncio.get_event_loop()
-                            async def _collect():
-                                async for d in cli.get_dialogs():
-                                    dialogs.append(d)
-                            loop.run_until_complete(_collect())
-                        except RuntimeError:
-                            # Если event loop уже запущен (например, в PyQt), используем nest_asyncio
-                            nest_asyncio.apply()
-                            loop = asyncio.get_event_loop()
-                            async def _collect2():
-                                async for d in cli.get_dialogs():
-                                    dialogs.append(d)
-                            loop.run_until_complete(_collect2())
-                        except Exception as e:
-                            QMessageBox.warning(self, "Чаты", f"Ошибка загрузки чатов: {e}")
-                            try:
-                                cli.stop()
-                            except Exception:
-                                try:
-                                    cli.disconnect()
-                                except Exception:
-                                    pass
-                            return
-
-                        # Преобразуем в удобную структуру
-                        chats = []
-                        for d in dialogs:
-                            ch = d.chat
-                            # Только группы/супергруппы/каналы
-                            if ch.type in (ChatType.GROUP, ChatType.SUPERGROUP, ChatType.CHANNEL):
-                                username = getattr(ch, 'username', None)
-                                address = f"@{username}" if username else str(ch.id)
-                                chats.append({
-                                    'id': ch.id,
-                                    'title': ch.title or ch.first_name or str(ch.id),
-                                    'username': username,
-                                    'type': ch.type.name,
-                                    'address': address
-                                })
-
-                        # Сортировка по алфавиту
-                        chats.sort(key=lambda c: (c['title'] or '').lower())
-                        self._chat_cache[session_name] = chats
-
-                        # Не закрываем клиента, он переиспользуется, но снимаем lock при закрытии приложения
-                        try:
-                            cli.disconnect()
-                            if hasattr(cli, "_file_lock"):
-                                cli._file_lock.release()
-                        except Exception:
-                            pass
-
-                    def _refresh(force: bool, dlg_ref: ChatPickerDialog):
-                        try:
-                            if force:
-                                # Инвалидируем кэш для аккаунта
-                                self._chat_cache.pop(session_name, None)
-                            dlg_ref.set_loading(True, "Загрузка чатов...")
-                            worker = ChatListWorker({
-                                'session_name': session_name,
-                                'api_id': _acc['api_id'],
-                                'api_hash': _acc['api_hash'],
-                            }, batch_size=200)
-                            aggregated: list[dict] = []
-                            def on_partial(chats_part: list[dict]):
-                                nonlocal aggregated
-                                aggregated.extend(chats_part)
-                                dlg_ref.set_loading(True, f"Загружено: {len(aggregated)}…")
-                                dlg_ref.refresh_with(aggregated)
-                            def on_ok(chats_new: list[dict]):
-                                try:
-                                    # Если финальный сигнал пришёл пустым — используем накопленные
-                                    final_list = aggregated if chats_new == [] else chats_new
-                                    self._chat_cache[session_name] = final_list
-                                except Exception:
-                                    pass
-                                dlg_ref.set_loading(False, "")
-                                dlg_ref.refresh_with(final_list)
-                            def on_err(msg: str):
-                                dlg_ref.set_loading(False, "")
-                                dlg_ref.show_error(msg or "Ошибка загрузки чатов")
-                            worker.partial.connect(on_partial)
-                            worker.success.connect(on_ok)
-                            worker.error.connect(on_err)
-                            worker.start()
-                        except Exception as e:
-                            dlg_ref.show_error(str(e))
-
-                    dlg = ChatPickerDialog(self, _name, chats, on_refresh=_refresh)
-                    if chats is None or len(chats) == 0:
-                        _refresh(False, dlg)
-
-                    if dlg.exec() == QDialog.DialogCode.Accepted:
-                        addrs = dlg.selected_addresses()
-                        if addrs:
-                            # Нормализуем адресаты и вписываем, по одному на строку
-                            lines = [normalize_recipient(a) for a in addrs if a]
-                            _txt.setPlainText("\n".join(lines))
-                            # Разрешаем редактирование, если аккаунт включён
-                            _txt.setReadOnly(not box.isChecked())
-                except Exception as e:
-                    QMessageBox.warning(self, "Чаты", f"Ошибка: {e}")
-
-            chat_btn.clicked.connect(on_chat_click)
-
-            box.stateChanged.connect(lambda s, w=txt: w.setReadOnly(s != Qt.CheckState.Checked.value))
+            def on_leads_click(_=None, _txt=txt):
+                dlg = LeadsEditorDialog(self, _txt.toPlainText())
+                if dlg.exec() == QDialog.DialogCode.Accepted:
+                    _txt.setPlainText(dlg.get_text())
+            
+            edit_leads_btn.clicked.connect(on_leads_click)
+            
             self.broadcast_items.append((box, txt, acc))
+            
         self.broadcast_accounts_layout.addStretch()
 
     def start_broadcast(self):
@@ -3040,19 +2778,6 @@ class TelegramApp(QMainWindow):
         # Резервирование квоты лицензии
         reservation_id = None
 
-        # Проверяем возможность возобновления предыдущей рассылки
-        resume_session = self._check_resume_possibility()
-        if resume_session:
-            reply = QMessageBox.question(
-                self, "Возобновить рассылку?",
-                f"Найдена незавершенная рассылка ({resume_session['total_sent']} отправлено).\n\n"
-                f"Хотите возобновить её или начать новую?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.Yes
-            )
-            if reply == QMessageBox.StandardButton.Yes:
-                # Возобновляем рассылку
-                return self._resume_broadcast(resume_session['session_id'])
 
         # Диалог логов
         dlg = QDialog(self)
@@ -3203,6 +2928,24 @@ class TelegramApp(QMainWindow):
         worker.start()
         dlg.exec()
 
+    def setup_chats_broadcast_tab(self):
+        try:
+            # Layout initialization done in init
+            layout = QVBoxLayout(self.chats_broadcast_tab)
+            layout.setContentsMargins(0, 0, 0, 0)
+            
+            # Import widget dynamically to avoid circular issues
+            from mini_broadcast import MiniBroadcastWidget
+            
+            self.mini_broadcast_widget = MiniBroadcastWidget()
+            layout.addWidget(self.mini_broadcast_widget)
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"Error setting up chats broadcast tab: {e}")
+            layout.addWidget(QLabel(f"Ошибка загрузки модуля: {e}"))
+
     def setup_scripts_tab(self):
         layout = QVBoxLayout(self.scripts_tab)
 
@@ -3323,7 +3066,7 @@ class TelegramApp(QMainWindow):
                 return
             dlg = ScriptEditorDialog(self, "Текст скрипта")
             if dlg.exec() == QDialog.DialogCode.Accepted:
-                save_script(name.strip(), dlg.html())
+                save_script(name.strip(), dlg.html(), category="leads")
                 reload_list()
 
         def edit_script():
@@ -3333,14 +3076,14 @@ class TelegramApp(QMainWindow):
                 return
             fname = item.text()
             try:
-                text = load_script(fname)
+                text = load_script(fname, category="leads")
             except FileNotFoundError:
                 QMessageBox.warning(self, "Скрипты", "Файл не найден")
                 reload_list()
                 return
             dlg = ScriptEditorDialog(self, f"Редактировать {fname}", text)
             if dlg.exec() == QDialog.DialogCode.Accepted:
-                save_script(fname, dlg.html())
+                save_script(fname, dlg.html(), category="leads")
 
         def del_script():
             item = self.scripts_list.currentItem()
@@ -3348,7 +3091,7 @@ class TelegramApp(QMainWindow):
                 return
             fname = item.text()
             if QMessageBox.question(self, "Удалить", f"Удалить {fname}?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
-                delete_script(fname)
+                delete_script(fname, category="leads")
                 reload_list()
 
         add_btn.clicked.connect(add_script)
@@ -3358,33 +3101,172 @@ class TelegramApp(QMainWindow):
     def setup_history_tab(self):
         layout = QVBoxLayout(self.history_tab)
         
+        # Кнопка обновления
+        top_bar = QHBoxLayout()
+        refresh_btn = QPushButton("Обновить")
+        refresh_btn.setProperty("role", "secondary")
+        refresh_btn.clicked.connect(self.reload_history)
+        top_bar.addStretch()
+        top_bar.addWidget(refresh_btn)
+        layout.addLayout(top_bar)
+        
+        # Список логов
+        self.history_list = QListWidget()
+        self.history_list.itemDoubleClicked.connect(self.open_history_log)
+        layout.addWidget(self.history_list)
+        
+        # Загружаем историю
+        self.reload_history()
+        
+    def reload_history(self):
+        self.history_list.clear()
+        if not os.path.exists('broadcast_logs'):
+            return
+            
+        try:
+            files = [f for f in os.listdir('broadcast_logs') if f.endswith('.html')]
+            # Сортируем по дате изменения (новые сверху)
+            files.sort(key=lambda x: os.path.getmtime(os.path.join('broadcast_logs', x)), reverse=True)
+            
+            for f in files:
+                self.history_list.addItem(f)
+        except Exception:
+            pass
+            
+    def open_history_log(self, item):
+        fname = item.text()
+        path = os.path.join('broadcast_logs', fname)
+        if not os.path.exists(path):
+            QMessageBox.warning(self, "Ошибка", "Файл лога не найден")
+            return
+            
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                
+            dlg = QDialog(self)
+            dlg.setWindowTitle(f"Лог: {fname}")
+            dlg.resize(800, 600)
+            lay = QVBoxLayout(dlg)
+            
+            view = QTextEdit()
+            view.setReadOnly(True)
+            view.setHtml(content)
+            lay.addWidget(view)
+            
+            btn = QPushButton("Закрыть")
+            btn.clicked.connect(dlg.accept)
+            lay.addWidget(btn)
+            
+            dlg.exec()
+        except Exception as e:
+            QMessageBox.warning(self, "Ошибка", f"Не удалось открыть лог: {e}")
+        
     def setup_about_tab(self):
+        import platform
+        
         layout = QVBoxLayout(self.about_tab)
-        lbl = QLabel('<h3>TGFlow</h3>')
-        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(lbl)
+        layout.setSpacing(15)
+        layout.setContentsMargins(40, 40, 40, 40)
+        
+        # Logo / Header
+        title_lbl = QLabel("TGFlow")
+        title_font = QFont()
+        title_font.setPointSize(28)
+        title_font.setBold(True)
+        title_lbl.setFont(title_font)
+        title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_lbl.setStyleSheet("color: #4A90E2;")
+        layout.addWidget(title_lbl)
+        
+        version_lbl = QLabel("v2.1.0 Pro")
+        version_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        version_lbl.setStyleSheet("color: #888; margin-bottom: 20px;")
+        layout.addWidget(version_lbl)
+        
+        # Description
+        desc_lbl = QLabel("Мощный инструмент для автоматизации рассылок в Telegram.\n"
+                          "Управляйте аккаунтами, создавайте сценарии и анализируйте результаты.")
+        desc_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        desc_lbl.setWordWrap(True)
+        desc_lbl.setStyleSheet("font-size: 14px; line-height: 1.4;")
+        layout.addWidget(desc_lbl)
+        
+        layout.addSpacing(20)
+        
+        # Developer Card
+        dev_frame = QWidget()
+        dev_frame.setStyleSheet("""
+            background-color: #2b2b2b; 
+            border-radius: 10px; 
+            padding: 15px;
+        """)
+        dev_layout = QVBoxLayout(dev_frame)
+        
+        dev_title = QLabel("Разработчик / Поддержка")
+        dev_title.setStyleSheet("color: #aaa; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;")
+        dev_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        dev_layout.addWidget(dev_title)
+        
+        dev_link = QPushButton("@HermannSaliter")
+        dev_link.setCursor(Qt.CursorShape.PointingHandCursor)
+        dev_link.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                border: none;
+                color: #4A90E2;
+                font-size: 18px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                color: #5AA0F2;
+                text-decoration: underline;
+            }
+        """)
+        def open_tg_dev():
+            from PyQt6.QtGui import QDesktopServices
+            from PyQt6.QtCore import QUrl
+            QDesktopServices.openUrl(QUrl("https://t.me/HermannSaliter"))
+            
+        dev_link.clicked.connect(open_tg_dev)
+        dev_layout.addWidget(dev_link)
+        
+        layout.addWidget(dev_frame)
+        
+        layout.addSpacing(10)
+        
+        # Buttons Grid
+        btns_layout = QHBoxLayout()
+        btns_layout.setSpacing(15)
+        
+        # Open Data Folder
+        data_btn = QPushButton("📂 Папка данных")
+        data_btn.setMinimumHeight(40)
+        def open_data_dir():
+             from PyQt6.QtGui import QDesktopServices
+             from PyQt6.QtCore import QUrl
+             QDesktopServices.openUrl(QUrl.fromLocalFile(str(USER_DATA_DIR)))
+        data_btn.clicked.connect(open_data_dir)
+        btns_layout.addWidget(data_btn)
 
-        link_edit = QLineEdit('https://t.me/your_public_channel')
-        link_edit.setReadOnly(True)
-        copy_btn = QPushButton('Копировать ссылку')
-        copy_btn.setProperty("role", "secondary")
-        def copy_link():
-            QApplication.clipboard().setText(link_edit.text())
-            QMessageBox.information(self,'Скопировано','Ссылка скопирована в буфер обмена')
-        copy_btn.clicked.connect(copy_link)
-
-        h = QHBoxLayout()
-        h.addWidget(QLabel('TG:'))
-        h.addWidget(link_edit,1)
-        h.addWidget(copy_btn)
-        layout.addLayout(h)
-
-        copyright = QLabel('© 2025')
-        copyright.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(copyright)
-
-        font = QFont(); font.setPointSize(14)
-        lbl.setFont(font)
+        # Check Updates
+        update_btn = QPushButton("🔄 Проверить обновления")
+        update_btn.setMinimumHeight(40)
+        def check_updates():
+            QMessageBox.information(self, "Обновление", "У вас установлена последняя версия TGFlow!")
+        update_btn.clicked.connect(check_updates)
+        btns_layout.addWidget(update_btn)
+        
+        layout.addLayout(btns_layout)
+        
+        layout.addStretch()
+        
+        # System Info Footer
+        sys_info = f"Python {sys.version.split()[0]} | {platform.system()} {platform.release()}"
+        footer = QLabel(f"© 2026 AiGen Inc.\n{sys_info}")
+        footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        footer.setStyleSheet("color: #555; font-size: 10px;")
+        layout.addWidget(footer)
         
     def load_accounts(self):
         try:
@@ -4130,6 +4012,13 @@ def apply_global_theme(app):
     /* Progress */
     QProgressBar { border: 1px solid #3b3f46; border-radius: 6px; background: #14161c; text-align: center; color: #e6e6e6; }
     QProgressBar::chunk { background-color: #2d79c7; border-radius: 6px; }
+
+    /* Checkboxes */
+    QCheckBox { spacing: 8px; color: #e6e6e6; }
+    QCheckBox::indicator { width: 18px; height: 18px; border: 2px solid #5b626b; border-radius: 4px; background: #1a1c22; }
+    QCheckBox::indicator:unchecked:hover { border-color: #798291; background: #23262d; }
+    QCheckBox::indicator:checked { background: #2d79c7; border-color: #2d79c7; }
+    QCheckBox::indicator:checked:hover { background: #3a86d4; border-color: #3a86d4; }
     """.strip()
     app.setStyleSheet(qss)
 

@@ -40,6 +40,6 @@ echo "Проверка зависимостей..."
 "$VENV_PIP" install -q --upgrade pip
 "$VENV_PIP" install -q -r requirements.txt
 
-# Запуск приложения
-echo "Запуск TGFlow..."
-"$VENV_PYTHON" main.py
+# Запуск мини-приложения
+echo "Запуск TGFlow Mini..."
+"$VENV_PYTHON" mini_broadcast.py
