@@ -3,6 +3,11 @@ import os
 import json
 import logging
 from pathlib import Path
+import unittest
+
+if os.environ.get("TGFLOW_RUN_LIVE_TESTS", "").strip().lower() not in {"1", "true", "yes", "on"}:
+    raise unittest.SkipTest("Live Telegram broadcast tests are disabled by default. Set TGFLOW_RUN_LIVE_TESTS=1.")
+
 from PyQt6.QtCore import QCoreApplication
 
 # Add project root to path
@@ -15,6 +20,7 @@ import script_manager
 
 # Configure logging to stdout
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
 
 def test_broadcast():
     print("Initializing QCoreApplication...")
@@ -78,4 +84,3 @@ def test_broadcast():
 
 if __name__ == "__main__":
     test_broadcast()
-

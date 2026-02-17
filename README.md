@@ -33,6 +33,20 @@ pip install -r requirements.txt
 python main.py
 ```
 
+## Тестирование
+Быстрые автотесты (unit):
+
+```bash
+python3 -m unittest discover -s tests -p 'test_*.py' -v
+```
+
+Интеграционные live-тесты Telegram (требуют реальные аккаунты/сессии) отключены по умолчанию.
+Чтобы включить их вручную:
+
+```bash
+TGFLOW_RUN_LIVE_TESTS=1 python3 -m unittest discover -s tests -p 'test_*.py' -v
+```
+
 ## Сборка standalone-приложения
 Используется PyInstaller. В репозитории есть готовые спек-файлы:
 

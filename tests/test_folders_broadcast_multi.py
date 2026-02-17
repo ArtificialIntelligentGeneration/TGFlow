@@ -5,6 +5,10 @@ import asyncio
 import logging
 import random
 from pathlib import Path
+import unittest
+
+if os.environ.get("TGFLOW_RUN_LIVE_TESTS", "").strip().lower() not in {"1", "true", "yes", "on"}:
+    raise unittest.SkipTest("Live multi-folder broadcast tests are disabled by default. Set TGFLOW_RUN_LIVE_TESTS=1.")
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))

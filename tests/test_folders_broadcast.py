@@ -4,6 +4,11 @@ import json
 import asyncio
 import logging
 from pathlib import Path
+import unittest
+
+if os.environ.get("TGFLOW_RUN_LIVE_TESTS", "").strip().lower() not in {"1", "true", "yes", "on"}:
+    raise unittest.SkipTest("Live folder broadcast tests are disabled by default. Set TGFLOW_RUN_LIVE_TESTS=1.")
+
 from PyQt6.QtCore import QCoreApplication
 
 # Add project root to path
@@ -17,6 +22,7 @@ from pyrogram.raw.functions.messages import GetDialogFilters
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
 
 async def get_chats_from_folders(client, folder_titles):
     print(f"Fetching folders (filters)...")
@@ -252,4 +258,3 @@ if __name__ == "__main__":
             worker.run() # Blocking run
         except KeyboardInterrupt:
             print("Interrupted")
-
